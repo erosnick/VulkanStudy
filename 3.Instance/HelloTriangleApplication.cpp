@@ -1,6 +1,11 @@
 #include "HelloTriangleApplication.h"
 #include <vector>
 
+// 在Vulkan中创建、实例化相关的函数参数一半遵循如下原则定义
+// 1.使用有关creation info的结构体指针
+// 2.使用自定义分配器回调的指针
+// 3.使用保存新对象句柄的指针
+
 void HelloTriangleApplication::CreateInstance()
 {
 	VkApplicationInfo ApplicationInfo = {};
@@ -26,6 +31,7 @@ void HelloTriangleApplication::CreateInstance()
 	CreateInfo.ppEnabledExtensionNames = GLFWExtensions;
 	CreateInfo.enabledLayerCount = 0;
 
+	// VkInstance是应用程序和Vulkan库之间的连接桥梁。
 	if (vkCreateInstance(&CreateInfo, nullptr, &Instance) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to create instance!");

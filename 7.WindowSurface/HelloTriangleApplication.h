@@ -1,7 +1,7 @@
 #pragma once
 
-#include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
 #include <iostream>
 #include <stdexcept>
 #include <functional>
@@ -9,7 +9,6 @@
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
-
 
 // Vulkan API的设计核心是尽量最小化驱动程序的额外开销，所谓额外开销更多的是指向渲染以外的运算。
 // 其中一个具体的表现就是默认条件下，Vulkan API的错误检查的支持非常有限。即使遍历不正确的值或者
@@ -26,7 +25,6 @@ const int HEIGHT = 600;
 // Vulkan SDK提供的标准诊断层。
 const std::vector<const char*> ValidationLayers = { "VK_LAYER_LUNARG_standard_validation" };
 
-// 根据条件开启Validation Layer。
 #ifdef NDEBUG
 	const bool EnableValidationLayers = false;
 #else
@@ -36,9 +34,11 @@ const std::vector<const char*> ValidationLayers = { "VK_LAYER_LUNARG_standard_va
 struct QueueFamilyIndices
 {
 	int GraphicsFamily = -1;
+	int PresentFamily = -1;
+
 	bool IsComplete()
 	{
-		return GraphicsFamily >= 0;
+		return GraphicsFamily >= 0 && PresentFamily >= 0;
 	}
 };
 
@@ -64,9 +64,11 @@ private:
 
 	// 获取需要的扩展。
 	std::vector<const char*> GetRequiredExtensions();
-	
+
 	// 设置用于Validdation Layer的回调函数。
 	void SetupDebugCallback();
+
+	void CreateSurface();
 
 	// Validation Layer的回调函数，只有这样才能在出问题时获得汇报信息。
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugReportFlagsEXT Flags,
@@ -98,6 +100,9 @@ private:
 	// 获取队列家族。
 	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice Device);
 
+	// 创建逻辑设备。
+	void CreateLogicalDevice();
+
 	// 渲染循环。
 	void MainLoop();
 
@@ -107,6 +112,11 @@ private:
 private:
 
 	GLFWwindow* Window;
+	VkSurfaceKHR Surface;
 	VkInstance Instance;
 	VkDebugReportCallbackEXT Callback;
+	VkPhysicalDevice PhysicalDevice;
+	VkDevice LogicalDevice;
+	VkQueue GraphicQueue;
+	VkQueue PresentQueue;
 };

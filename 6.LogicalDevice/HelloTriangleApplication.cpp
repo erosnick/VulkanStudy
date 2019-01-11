@@ -1,5 +1,12 @@
 #include "HelloTriangleApplication.h"
 
+// 在Vulkan中创建、实例化相关的函数参数一半遵循如下原则定义
+// 1.使用有关creation info的结构体指针
+// 2.使用自定义分配器回调的指针
+// 3.使用保存新对象句柄的指针
+
+// vkCreateDebugReportCallbackEXT函数是一个扩展功能，并不会被自动加载，
+// 必须使用vkGetInstanceProcAddr通过函数地址来调用。
 VkResult CreateDebugReportCallbackEXT(VkInstance Instance,
 	const VkDebugReportCallbackCreateInfoEXT* pCreateInfo,
 	const VkAllocationCallbacks* pAllocator,
@@ -17,6 +24,7 @@ VkResult CreateDebugReportCallbackEXT(VkInstance Instance,
 	}
 }
 
+// 用于清理VkDebugReportCallbackEXT对象的vkDestroyDebugReportCallbackEXT函数也是一个扩展，获取方法同上。
 void DestroyDebugReportCallbackEXT(VkInstance Instance, VkDebugReportCallbackEXT Callback, const VkAllocationCallbacks* pAllocator)
 {
 	auto Function = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(Instance, "vkDestroyDebugReportCallbackEXT");
@@ -146,6 +154,8 @@ void HelloTriangleApplication::SetupDebugCallback()
 		return;
 	}
 
+	// Validation layers的行为可以有更多的设置，不仅仅是VkDebugReportCallbackCreateInfoEXT结构中指定的标志位信息。
+	// 浏览Vulkan SDK的Config目录。找到vk_layer_settings.txt文件，里面有说明如何配置layers
 	VkDebugReportCallbackCreateInfoEXT CreateInfo = {};
 
 	CreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
