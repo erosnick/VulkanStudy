@@ -1,5 +1,6 @@
 #include "HelloTriangleApplication.h"
 #include <set>
+#include <algorithm>
 
 // 在Vulkan中创建、实例化相关的函数参数一半遵循如下原则定义
 // 1.使用有关creation info的结构体指针
@@ -219,6 +220,7 @@ void HelloTriangleApplication::InitVulkan()
 	CreateSurface();
 	PickPhysicalDevice();
 	CreateLogicalDevice();
+	CreateSwapChain();
 }
 
 void HelloTriangleApplication::MainLoop()
@@ -231,6 +233,7 @@ void HelloTriangleApplication::MainLoop()
 
 void HelloTriangleApplication::Cleanup()
 {
+	vkDestroySwapchainKHR(LogicalDevice, SwapChain, nullptr);
 	vkDestroySurfaceKHR(Instance, Surface, nullptr);
 	vkDestroyDevice(LogicalDevice, nullptr);
 	DestroyDebugReportCallbackEXT(Instance, Callback, nullptr);
@@ -355,7 +358,7 @@ SwapChainSupprotDetails HelloTriangleApplication::QuerySwapChainSupport(VkPhysic
 
 	if (PresentModeCount != 0)
 	{
-		vkGetPhysicalDeviceSurfacePresentModesKHR(Device, Surface, &PresentModeCount, &Details.PresentModes);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(Device, Surface, &PresentModeCount, Details.PresentModes.data());
 	}
 
 	return Details;
@@ -400,7 +403,19 @@ VkPresentModeKHR HelloTriangleApplication::ChooseSwapPresentaMode(const std::vec
 
 VkExtent2D HelloTriangleApplication::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& Capabilities)
 {
+	if (Capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+	{
+		return Capabilities.currentExtent;
+	}
+	else
+	{
+		VkExtent2D ActualExtent = { WIDTH, HEIGHT };
 
+		ActualExtent.width = std::max(Capabilities.minImageExtent.width, std::min(Capabilities.maxImageExtent.width, ActualExtent.width));
+		ActualExtent.height = std::max(Capabilities.minImageExtent.height, std::min(Capabilities.maxImageExtent.height, ActualExtent.height));
+	
+		return ActualExtent;
+	}
 }
 
 void HelloTriangleApplication::CreateLogicalDevice()
@@ -450,6 +465,84 @@ void HelloTriangleApplication::CreateLogicalDevice()
 
 	vkGetDeviceQueue(LogicalDevice, Indices.GraphicsFamily, 0, &GraphicQueue);
 	vkGetDeviceQueue(LogicalDevice, Indices.PresentFamily, 0, &PresentQueue);
+}
+
+void HelloTriangleApplication::CreateSwapChain()
+{
+	SwapChainSupprotDetails Details = QuerySwapChainSupport(PhysicalDevice);
+
+	VkSurfaceFormatKHR SurfaceFormat = ChooseSwapSurfaceFormat(Details.Formats);
+	VkPresentModeKHR PresentMode = ChooseSwapPresentaMode(Details.PresentModes);
+	VkExtent2D Extent = ChooseSwapExtent(Details.Capabilities);
+
+	SwapChainImageFormat = SurfaceFormat.format;
+	SwapChainExtent = Extent;
+
+	uint32_t ImageCount = Details.Capabilities.minImageCount + 1;
+
+	if (Details.Capabilities.maxImageCount > 0 && ImageCount > Details.Capabilities.maxImageCount)
+	{
+		ImageCount = Details.Capabilities.maxImageCount;
+	}
+
+	VkSwapchainCreateInfoKHR SwapChainCreateInfo = {};
+
+	SwapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	SwapChainCreateInfo.surface = Surface;
+	SwapChainCreateInfo.minImageCount = ImageCount;
+	SwapChainCreateInfo.imageFormat = SurfaceFormat.format;
+	SwapChainCreateInfo.imageColorSpace = SurfaceFormat.colorSpace;
+	SwapChainCreateInfo.imageExtent = Extent;
+	SwapChainCreateInfo.imageArrayLayers = 1;
+
+	// imageArrayLayers指定每个图像组成的层数。除非我们开发3D应用程序，
+	// 否则始终为1。imageUsage位字段指定在交换链中对图像进行的具体操作。
+	// 在本小节中，我们将直接对它们进行渲染，这意味着它们作为颜色附件。
+	// 也可以首先将图像渲染为单独的图像，进行后处理操作。
+	// 在这种情况下可以使用像VK_IMAGE_USAGE_TRANSFER_DST_BIT这样的值，并使用内存操作将渲染的图像传输到交换链图像队列。
+	SwapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+	// 接下来，我们需要指定如何处理跨多个队列簇的交换链图像。
+	// 如果graphics队列簇与presentation队列簇不同，会出现如下情形。
+	// 我们将从graphics队列中绘制交换链的图像，然后在另一个presentation队列中提交他们。多队列处理图像有两种方法:
+	// VK_SHARING_MODE_EXCLUSIVE: 同一时间图像只能被一个队列簇占用，如果其他队列簇需要其所有权需要明确指定。这种方式提供了最好的性能。
+	// VK_SHARING_MODE_CONCURRENT : 图像可以被多个队列簇访问，不需要明确所有权从属关系。
+	QueueFamilyIndices FamilyIndices = FindQueueFamilies(PhysicalDevice);
+
+	uint32_t Indices[] = {(uint32_t)FamilyIndices.GraphicsFamily, (uint32_t)FamilyIndices.PresentFamily};
+
+	if (FamilyIndices.GraphicsFamily != FamilyIndices.PresentFamily)
+	{
+		SwapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		SwapChainCreateInfo.queueFamilyIndexCount = 2;
+		SwapChainCreateInfo.pQueueFamilyIndices = Indices;
+	}
+	else
+	{
+		SwapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		SwapChainCreateInfo.queueFamilyIndexCount = 0;
+		SwapChainCreateInfo.pQueueFamilyIndices = nullptr;
+	}
+
+	// 如果交换链支持(supportedTransforms in capabilities),我们可以为交换链图像指定某些转换逻辑，
+	// 比如90度顺时针旋转或者水平反转。如果不需要任何transoform操作，可以简单的设置为currentTransoform。
+	SwapChainCreateInfo.preTransform = Details.Capabilities.currentTransform;
+	// 混合Alpha字段指定alpha通道是否应用与与其他的窗体系统进行混合操作。如果忽略该功能，简单的填VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR。
+	SwapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	SwapChainCreateInfo.presentMode = PresentMode;
+	// 如果clipped成员设置为VK_TRUE，意味着我们不关心被遮蔽的像素数据，比如由于其他的窗体置于前方时或者渲染的部分内容存在于可是区域之外，
+	// 除非真的需要读取这些像素获数据进行处理，否则可以开启裁剪获得最佳性能。
+	SwapChainCreateInfo.clipped = VK_TRUE;
+	SwapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+
+	if (vkCreateSwapchainKHR(LogicalDevice, &SwapChainCreateInfo, nullptr, &SwapChain) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create swap chain!");
+	}
+
+	vkGetSwapchainImagesKHR(LogicalDevice, SwapChain, &ImageCount, nullptr);
+	SwapChainImages.resize(ImageCount);
+	vkGetSwapchainImagesKHR(LogicalDevice, SwapChain, &ImageCount, SwapChainImages.data());
 }
 
 void HelloTriangleApplication::Run()

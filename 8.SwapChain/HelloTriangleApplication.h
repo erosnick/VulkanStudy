@@ -117,20 +117,38 @@ private:
 	// 获取SwapChain支持细节。
 	SwapChainSupprotDetails QuerySwapChainSupport(VkPhysicalDevice Device);
 
+	// 选择Surface的格式。
+	// 每个VkSurfaceFormatKHR结构都包含一个format和一个colorSpace成员。format成员变量指定色彩通道和类型。比如，VK_FORMAT_B8G8R8A8_UNORM代表了我们使用B, G, R和alpha次序的通道，且每一个通道为无符号8bit整数，每个像素总计32bits。colorSpace成员描述SRGB颜色空间是否通过VK_COLOR_SPACE_SRGB_NONLINEAR_KHR标志支持
 	VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& AvailableForamt);
 
 	// 选择交换链的呈现模式。
 	// Presentation模式对于交换链是非常重要的，因为它代表了在屏幕呈现图像的条件。在Vulkan中有四个模式可以使用:
-	// VK_PRESENT_MODE_IMMEDIATE_KHR: 应用程序提交的图像被立即传输到屏幕呈现，这种模式可能会造成撕裂效果。
-	// VK_PRESENT_MODE_FIFO_KHR : 交换链被看作一个队列，当显示内容需要刷新的时候，显示设备从队列的前面获取图像，并且程序将渲染完成的图像插入队列的后面。如果队列是满的程序会等待。这种规模与视频游戏的垂直同步很类似。显示设备的刷新时刻被成为“垂直中断”。
-	// VK_PRESENT_MODE_FIFO_RELAXED_KHR : 该模式与上一个模式略有不同的地方为，如果应用程序存在延迟，即接受最后一个垂直同步信号时队列空了，将不会等待下一个垂直同步信号，而是将图像直接传送。这样做可能导致可见的撕裂效果。
-	// VK_PRESENT_MODE_MAILBOX_KHR : 这是第二种模式的变种。当交换链队列满的时候，选择新的替换旧的图像，从而替代阻塞应用程序的情形。这种模式通常用来实现三重缓冲区，与标准的垂直同步双缓冲相比，它可以有效避免延迟带来的撕裂效果。
-	 VkPresentModeKHR ChooseSwapPresentaMode(const std::vector<VkPresentModeKHR> AvailablePresentModes);
 
+	// 1.VK_PRESENT_MODE_IMMEDIATE_KHR: 应用程序提交的图像被立即传输到屏幕呈现，这种模式可能会造成撕裂效果。
+
+	// 2.VK_PRESENT_MODE_FIFO_KHR : 交换链被看作一个队列，当显示内容需要刷新的时候，显示设备从队列的前面获取图像，
+	// 并且程序将渲染完成的图像插入队列的后面。如果队列是满的程序会等待。这种规模与视频游戏的垂直同步很类似。显示设备的刷新时刻被成为“垂直中断”。
+
+	// 3.VK_PRESENT_MODE_FIFO_RELAXED_KHR : 该模式与上一个模式略有不同的地方为，如果应用程序存在延迟，即接受最后一个垂直同步信号时队列空了，
+	// 将不会等待下一个垂直同步信号，而是将图像直接传送。这样做可能导致可见的撕裂效果。
+
+	// 4.VK_PRESENT_MODE_MAILBOX_KHR : 这是第二种模式的变种。当交换链队列满的时候，选择新的替换旧的图像，从而替代阻塞应用程序的情形。
+	// 这种模式通常用来实现三重缓冲区，与标准的垂直同步双缓冲相比，它可以有效避免延迟带来的撕裂效果。
+	VkPresentModeKHR ChooseSwapPresentaMode(const std::vector<VkPresentModeKHR> AvailablePresentModes);
+
+	// 获取交换链的交换范围。
+	// 交换范围是指交换链图像的分辨率，它几乎总是等于我们绘制窗体的分辨率。
+	// 分辨率的范围被定义在VkSurfaceCapabilitiesKHR结构体中。
+	// Vulkan告诉我们通过设置currentExtent成员的width和height来匹配窗体的分辨率。
+	// 然而，一些窗体管理器允许不同的设置，意味着将currentExtent的width和height设置为特殊的数值表示:uint32_t的最大值。
+	// 在这种情况下，我们参考窗体minImageExtent和maxImageExtent选择最匹配的分辨率。
 	VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& Capabilities);
 
 	// 创建逻辑设备。
 	void CreateLogicalDevice();
+
+	// 创建交换链。
+	void CreateSwapChain();
 
 	// 渲染循环。
 	void MainLoop();
@@ -148,4 +166,8 @@ private:
 	VkDevice LogicalDevice;
 	VkQueue GraphicQueue;
 	VkQueue PresentQueue;
+	VkSwapchainKHR SwapChain;
+	std::vector<VkImage> SwapChainImages;
+	VkFormat SwapChainImageFormat;
+	VkExtent2D SwapChainExtent;
 };
