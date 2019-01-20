@@ -95,6 +95,26 @@ void HelloTriangleApplication::CheckExtensions()
 	}
 }
 
+bool HelloTriangleApplication::CheckDeviceExtensionSupport(VkPhysicalDevice Device)
+{
+	uint32_t ExtensionCount;
+
+	vkEnumerateDeviceExtensionProperties(Device, nullptr, &ExtensionCount, nullptr);
+
+	std::vector<VkExtensionProperties> AvailableExtensions(ExtensionCount);
+
+	vkEnumerateDeviceExtensionProperties(Device, nullptr, &ExtensionCount, AvailableExtensions.data());
+
+	std::set<std::string> RequiredExtensions(DeviceExtensions.begin(), DeviceExtensions.end());
+
+	for (const auto& Extension : AvailableExtensions)
+	{
+		RequiredExtensions.erase(Extension.extensionName);
+	}
+
+	return RequiredExtensions.empty();
+}
+
 bool HelloTriangleApplication::CheckValidationLayerSupport()
 {
 	uint32_t LayerCount;
@@ -259,7 +279,18 @@ bool HelloTriangleApplication::IsDeviceSuitable(VkPhysicalDevice Device)
 {
 	QueueFamilyIndices Indices = FindQueueFamilies(Device);
 
-	return Indices.IsComplete();
+	bool ExtensionsSupported = CheckDeviceExtensionSupport(Device);
+
+	bool SwapChainAdequate = false;
+
+	if (ExtensionsSupported)
+	{
+		SwapChainSupprotDetails Details = QuerySwapChainSupport(Device);
+
+		SwapChainAdequate = !Details.Formats.empty() && !Details.PresentModes.empty();
+	}
+
+	return Indices.IsComplete() && ExtensionsSupported && SwapChainAdequate;
 }
 
 QueueFamilyIndices HelloTriangleApplication::FindQueueFamilies(VkPhysicalDevice Device)
@@ -302,6 +333,76 @@ QueueFamilyIndices HelloTriangleApplication::FindQueueFamilies(VkPhysicalDevice 
 	return FamilyIndices;
 }
 
+SwapChainSupprotDetails HelloTriangleApplication::QuerySwapChainSupport(VkPhysicalDevice Device)
+{
+	SwapChainSupprotDetails Details;
+
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(Device, Surface, &Details.Capabilities);
+
+	uint32_t FormatCount;
+
+	vkGetPhysicalDeviceSurfaceFormatsKHR(Device, Surface, &FormatCount, nullptr);
+
+	if (FormatCount != 0)
+	{
+		Details.Formats.resize(FormatCount);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(Device, Surface, &FormatCount, Details.Formats.data());
+	}
+
+	uint32_t PresentModeCount;
+
+	vkGetPhysicalDeviceSurfacePresentModesKHR(Device, Surface, &PresentModeCount, nullptr);
+
+	if (PresentModeCount != 0)
+	{
+		vkGetPhysicalDeviceSurfacePresentModesKHR(Device, Surface, &PresentModeCount, &Details.PresentModes);
+	}
+
+	return Details;
+}
+
+VkSurfaceFormatKHR HelloTriangleApplication::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& AvailableFormats)
+{
+	if (AvailableFormats.size() == 1 && AvailableFormats[0].format == VK_FORMAT_UNDEFINED)
+	{
+		return { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+	}
+
+	for (const auto& AvailableFormat : AvailableFormats)
+	{
+		if (AvailableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && AvailableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		{
+			return AvailableFormat;
+		}
+	}
+
+	return AvailableFormats[0];
+}
+
+VkPresentModeKHR HelloTriangleApplication::ChooseSwapPresentaMode(const std::vector<VkPresentModeKHR> AvailablePresentModes)
+{
+	VkPresentModeKHR BestMode = VK_PRESENT_MODE_FIFO_KHR;
+
+	for (const auto& AvailablePresentMode : AvailablePresentModes)
+	{
+		if (AvailablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+		{
+			return AvailablePresentMode;
+		}
+		else if (AvailablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+		{
+			BestMode = AvailablePresentMode;
+		}
+	}
+
+	return BestMode;
+}
+
+VkExtent2D HelloTriangleApplication::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& Capabilities)
+{
+
+}
+
 void HelloTriangleApplication::CreateLogicalDevice()
 {
 	QueueFamilyIndices Indices = FindQueueFamilies(PhysicalDevice);
@@ -330,8 +431,7 @@ void HelloTriangleApplication::CreateLogicalDevice()
 	DeviceCreateInfo.pQueueCreateInfos = QueueCreateInfos.data();
 	DeviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(QueueCreateInfos.size());
 	DeviceCreateInfo.pEnabledFeatures = &DeviceFeatures;
-	DeviceCreateInfo.ppEnabledExtensionNames = DeviceExtensions.data();
-	DeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(DeviceExtensions.size());
+	DeviceCreateInfo.enabledExtensionCount = 0;
 
 	if (EnableValidationLayers)
 	{
