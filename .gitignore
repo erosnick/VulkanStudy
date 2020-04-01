@@ -6,17 +6,21 @@
 *.lo
 *.o
 *.obj
+*.iobj
+*.idb
+*.pdb
+*.ipdb
 *.ilk
 *.db
-*.pdb
-*.tlog
-*.log
-*.idb
+*.opendb
 
 # Precompiled Headers
 *.gch
 *.pch
 *.ipch
+
+*.log
+*.tlog
 
 # Compiled Dynamic libraries
 *.so
