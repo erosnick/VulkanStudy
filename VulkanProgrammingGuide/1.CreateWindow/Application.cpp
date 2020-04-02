@@ -33,6 +33,55 @@ void Application::initializeVulkan()
 	createLogicalDevice();
 }
 
+void Application::queryInstanceLayers()
+{
+	uint32_t instanceLayerPropertyCount = 0;
+	std::vector<VkLayerProperties> instanceLayerProperties;
+
+	if (!vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, nullptr))
+	{
+		instanceLayerProperties.resize(instanceLayerPropertyCount);
+		if (vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, instanceLayerProperties.data()))
+		{
+			std::cout << "Enumerate instance layer properties failed." << std::endl;
+		}
+	}
+
+	std::cout << "Available instance layers:" << std::endl;
+
+	for (auto layerProperty : instanceLayerProperties)
+	{
+		std::cout << "\t" << layerProperty.layerName << std::endl;
+	}
+
+	std::cout << std::endl;
+}
+
+
+void Application::queryInstanceExtensions()
+{
+	uint32_t instanceExtensionCount = 0;
+	std::vector<VkExtensionProperties> deviceExtensions;
+
+	if (!vkEnumerateInstanceExtensionProperties(nullptr, &instanceExtensionCount, nullptr))
+	{
+		deviceExtensions.resize(instanceExtensionCount);
+		if (vkEnumerateInstanceExtensionProperties(nullptr, &instanceExtensionCount, deviceExtensions.data()))
+		{
+			std::cout << "Enumerate instance extensions failed." << std::endl;
+		}
+	}
+
+	std::cout << "Available instance extensions:" << std::endl;
+
+	for (const auto& extension : deviceExtensions)
+	{
+		std::cout << "\t" << extension.extensionName << std::endl;
+	}
+
+	std::cout << std::endl;
+}
+
 void Application::createInstance()
 {
 	const VkApplicationInfo applicationInfo = {
@@ -72,25 +121,25 @@ void Application::createInstance()
 	}
 }
 
-void Application::queryInstanceExtensions()
+void Application::queryDeviceLayers()
 {
-	uint32_t instanceExtensionCount = 0;
-	std::vector<VkExtensionProperties> deviceExtensions;
+	uint32_t deviceLayerPropertyCount = 0;
+	std::vector<VkLayerProperties> deviceLayerProperties;
 
-	if (!vkEnumerateInstanceExtensionProperties(nullptr, &instanceExtensionCount, nullptr))
+	if (!vkEnumerateDeviceLayerProperties(physicalDevice, &deviceLayerPropertyCount, nullptr))
 	{
-		deviceExtensions.resize(instanceExtensionCount);
-		if (vkEnumerateInstanceExtensionProperties(nullptr, &instanceExtensionCount, deviceExtensions.data()))
+		deviceLayerProperties.resize(deviceLayerPropertyCount);
+		if (vkEnumerateDeviceLayerProperties(physicalDevice, &deviceLayerPropertyCount, deviceLayerProperties.data()))
 		{
-			std::cout << "Enumerate instance extensions failed." << std::endl;
+			std::cout << "Enumerate device layer properties failed." << std::endl;
 		}
 	}
 
-	std::cout << "Available instance extensions:" << std::endl;
+	std::cout << "Available device layers:" << std::endl;
 
-	for (const auto& extension : deviceExtensions)
+	for (auto layerProperty : deviceLayerProperties)
 	{
-		std::cout << "\t" << extension.extensionName << std::endl;
+		std::cout << "\t" << layerProperty.layerName << std::endl;
 	}
 
 	std::cout << std::endl;
@@ -153,6 +202,8 @@ void Application::queryDeviceProperties()
 	queueFamilyProperties.resize(queueFamilyPropertyCount);
 
 	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
+
+	vkGetPhysicalDeviceFormatProperties(physicalDevice, )
 }
 
 void Application::createLogicalDevice()
@@ -190,52 +241,20 @@ void Application::createLogicalDevice()
 	}
 }
 
-void Application::queryInstanceLayers()
+void Application::createBuffer()
 {
-	uint32_t instanceLayerPropertyCount = 0;
-	std::vector<VkLayerProperties> instanceLayerProperties;
+	const VkBufferCreateInfo bufferCreateInfo = {
 
-	if (!vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, nullptr))
-	{
-		instanceLayerProperties.resize(instanceLayerPropertyCount);
-		if (vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, instanceLayerProperties.data()))
-		{
-			std::cout << "Enumerate instance layer properties failed." << std::endl;
-		}
-	}
+		0,
+		1024 * 1024,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_SHARING_MODE_EXCLUSIVE,
+		0,
+		nullptr
+	};
 
-	std::cout << "Available instance layers:" << std::endl;
-
-	for (auto layerProperty : instanceLayerProperties)
-	{
-		std::cout << "\t" << layerProperty.layerName << std::endl;
-	}
-
-	std::cout << std::endl;
-}
-
-void Application::queryDeviceLayers()
-{
-	uint32_t deviceLayerPropertyCount = 0;
-	std::vector<VkLayerProperties> deviceLayerProperties;
-
-	if (!vkEnumerateDeviceLayerProperties(physicalDevice, &deviceLayerPropertyCount, nullptr))
-	{
-		deviceLayerProperties.resize(deviceLayerPropertyCount);
-		if (vkEnumerateDeviceLayerProperties(physicalDevice, &deviceLayerPropertyCount, deviceLayerProperties.data()))
-		{
-			std::cout << "Enumerate device layer properties failed." << std::endl;
-		}
-	}
-
-	std::cout << "Available device layers:" << std::endl;
-
-	for (auto layerProperty : deviceLayerProperties)
-	{
-		std::cout << "\t" << layerProperty.layerName << std::endl;
-	}
-
-	std::cout << std::endl;
+	VkBuffer buffer = VK_NULL_HANDLE;
+	vkCreateBuffer(device, &bufferCreateInfo, &buffer);
 }
 
 void Application::mainLoop()
@@ -253,12 +272,13 @@ void Application::shutDown()
 	glfwTerminate();
 
 	vkDeviceWaitIdle(device);
-	vkDestroyDevice(device);
+	vkDestroyDevice(device, nullptr);
+	vkDestroyInstance(instance, nullptr);
 }
 
 Application::~Application()
 {
-	shutdown();
+	shutDown();
 }
 
 void Application::run()

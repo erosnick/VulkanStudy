@@ -28,7 +28,9 @@ public:
 	void createPhysicalDevice();
 	void queryDeviceProperties();
 	void createLogicalDevice();
+	void createBuffer();
 	void mainLoop();
+	void shutDown();
 	~Application();
 
 	void run();
