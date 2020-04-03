@@ -182,7 +182,7 @@ void cleanup() {
 
 现在，运行程序时您应该会看到一个名为Vulkan的窗口。现在我们有了Vulkan应用程序的框架，让我们创建第一个Vulkan对象吧！
 
-#### Instance
+### Instance
 
 ### 实例
 
@@ -329,4 +329,1183 @@ void cleanup() {
 vkDestroyInstance函数的参数很简单。如上一章所述，Vulkan中的分配和释放函数具有可选的分配器回调，我们将通过向其传递nullptr来忽略它。我们在后续章节中创建的所有其他Vulkan资源都应该在销毁实例前清理。
 
 在实例创建之后，继续执行更复杂的步骤之前，是时候通过验证层来评估我们的调试选项了。
+
+### Validation layers
+
+### 验证层
+
+#### What are validation layers?
+
+#### 什么是验证层？
+
+Vulkan API设计围绕最小化驱动开支的理念，表现之一就是默认的错误检查很有限。诸如给枚举变量赋了错误的值以及传递空指针给必须的参数这样简单的错误通常也没有明确的处理，只会导致崩溃和不确定的行为。
+
+由于Vulkan要求您对所做的一切都非常明确，因此很容易犯很多小错误，例如使用新的GPU功能而忘记在逻辑设备创建时请求它。
+
+但是，这并不意味着不能将这些检查添加到API。 Vulkan为此引入了一种优雅的系统，称为验证层。验证层是可插入Vulkan函数调用中以应用其他操作的可选组件。验证层的常见操作有：
+
+* 根据技术规范检查参数值来检测错误
+* 追踪资源的创建和销毁来寻找资源泄露
+* 通过追踪线程的起源来检查线程安全性
+* 记录每次调用及其参数到标准输出
+* 追踪Vulkan调用用于剖析和回放
+
+这里有一个在诊断层中函数实现的例子：
+
+```c++
+VkResult vkCreateInstance(
+    const VkInstanceCreateInfo* pCreateInfo,
+    const VkAllocationCallbacks* pAllocator,
+    VkInstance* instance) {
+
+    if (pCreateInfo == nullptr || instance == nullptr) {
+        log("Null pointer passed to required parameter!");
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    return real_vkCreateInstance(pCreateInfo, pAllocator, instance);
+}
+```
+
+这些验证层能够自由的堆叠来包含你感兴趣的所有调试功能性。您只需为调试版本启用验证层，而对发行版本完全禁用它们，两全其美(gives you the best of both worlds)！
+
+Vulkan没有内置任何验证层，但是LunarG Vulkan SDK提供了一组不错的层来检查常见错误。它们也是完全开源的，因此您可以看看他们检查哪些类型的错误并作出处理。使用验证层是避免意外依赖未定义行为，导致程序在不同的驱动上停止工作的最佳方法。
+
+验证层只有在安装到系统后才能使用。例如，LunarG验证层仅在安装了Vulkan SDK的PC上可用。
+
+Vulkan中以前有两种不同类型的验证层：实例和设备特定。这个想法是实例层将仅检查与实例之类的全局Vulkan对象有关的调用，而设备特定层将仅检查与特定GPU相关的调用。设备特定的层现在已经被弃用了，也就是说实例验证层应用于所有的Vulkan调用。规范文档仍然建议您在设备级别启用验证层，以实现兼容性，这是某些实现所需的。我们只需在逻辑设备级别指定与实例相同的层，稍后我们将介绍。
+
+#### Using validation layers
+
+#### 使用验证层
+
+在本节中，我们将看到如何启用Vulkan SDK提供的标准诊断层。与扩展一样，验证层也需要通过指定其名称来启用。所有有用的标准验证都打包到SDK中包含的一层中，该层称为VK_LAYER_KHRONOS_validation。
+
+首先，我们将两个配置变量添加到程序中，以指定要启用的层以及是否启用它们。我选择将该值基于是否在调试模式下编译程序。 NDEBUG宏是C ++标准的一部分，表示“非调试”。
+
+```c++
+const int WIDTH = 800;
+const int HEIGHT = 600;
+
+const std::vector<const char*> validationLayers = {
+    "VK_LAYER_KHRONOS_validation"
+};
+
+#ifdef NDEBUG
+    const bool enableValidationLayers = false;
+#else
+    const bool enableValidationLayers = true;
+#endif
+```
+
+我们将添加一个新函数checkValidationLayerSupport，以检查所有请求的图层是否可用。首先使用vkEnumerateInstanceLayerProperties函数列出所有可用层。它的用法与实例创建一章中讨论的vkEnumerateInstanceExtensionProperties的用法相同。
+
+```c++
+bool checkValidationLayerSupport() {
+    uint32_t layerCount;
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+    std::vector<VkLayerProperties> availableLayers(layerCount);
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    return false;
+}
+```
+
+接下来，检查validationLayers中的所有层是否都存在于availableLayers列表中。您可能需要包含<cstring>来使用strcmp。
+
+```c++
+for (const char* layerName : validationLayers) {
+    bool layerFound = false;
+
+    for (const auto& layerProperties : availableLayers) {
+        if (strcmp(layerName, layerProperties.layerName) == 0) {
+            layerFound = true;
+            break;
+        }
+    }
+
+    if (!layerFound) {
+        return false;
+    }
+}
+
+return true;
+```
+
+现在我们可以在createInstance函数中使用它：
+
+```c++
+void createInstance() {
+    if (enableValidationLayers && !checkValidationLayerSupport()) {
+        throw std::runtime_error("validation layers requested, but not available!");
+    }
+
+    ...
+}
+```
+
+现在，以调试模式运行该程序，并确保不会发生该错误。如果出错了，请查看常见问题解答。
+
+最后，修改VkInstanceCreateInfo结构实例以包括验证层名称（如果已启用）：
+
+```c++
+if (enableValidationLayers) {
+    createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+    createInfo.ppEnabledLayerNames = validationLayers.data();
+} else {
+    createInfo.enabledLayerCount = 0;
+}
+```
+
+译注：在我自己的机器上(GTX 1060，Vulkan SDK 1.2.131.2)支持的Layer如下：
+
+VK_LAYER_NV_optimus
+VK_LAYER_RENDERDOC_Capture
+VK_LAYER_VALVE_steam_overlay
+VK_LAYER_VALVE_steam_fossilize
+VK_LAYER_EOS_Overlay
+VK_LAYER_EOS_Overlay
+VK_LAYER_ROCKSTAR_GAMES_social_club
+VK_LAYER_LUNARG_api_dump
+VK_LAYER_LUNARG_device_simulation
+VK_LAYER_KHRONOS_validation
+VK_LAYER_LUNARG_monitor
+VK_LAYER_LUNARG_screenshot
+VK_LAYER_LUNARG_standard_validation
+VK_LAYER_LUNARG_vktrace
+
+#### Message callback
+
+#### 消息回调
+
+验证层默认情况下会将调试消息打印到标准输出，但是我们也可以通过在程序中提供显式回调来自行处理它们。这也使您可以决定要查看哪种消息，因为并非所有消息都一定是（致命的）错误。如果您现在不想这样做，则可以跳到本章的最后一部分。
+
+为了在程序中设置一个回调来处理消息和相关的细节，我们必须使用VK_EXT_debug_utils扩展来设置带有回调的调试程序。
+
+我们首先将创建一个getRequiredExtensions函数，该函数将根据是否启用验证层来返回所需的扩展列表：
+
+```c++
+std::vector<const char*> getRequiredExtensions() {
+    uint32_t glfwExtensionCount = 0;
+    const char** glfwExtensions;
+    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+    std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+    if (enableValidationLayers) {
+        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
+
+    return extensions;
+}
+```
+
+始终需要GLFW指定的扩展名，但是有条件地添加了调试消息扩展名。请注意，我在这里使用了VK_EXT_DEBUG_UTILS_EXTENSION_NAME宏，它等于文字字符串“ VK_EXT_debug_utils”。使用此宏可以避免输入错误。
+
+现在，我们可以在createInstance中使用此函数：
+
+```c++
+auto extensions = getRequiredExtensions();
+createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+createInfo.ppEnabledExtensionNames = extensions.data();
+```
+
+运行程序以确保您没有收到VK_ERROR_EXTENSION_NOT_PRESENT错误。我们实际上并不需要检查此扩展的存在，因为验证层的可用性应隐含此扩展。
+
+现在，让我们看看调试回调函数长啥样。使用PFN_vkDebugUtilsMessengerCallbackEXT原型添加一个名为debugCallback的新静态成员函数。 VKAPI_ATTR和VKAPI_CALL确保该函数具有Vulkan调用i的正确签名。
+
+```c++
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData) {
+
+    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+
+    return VK_FALSE;
+}
+```
+
+第一个参数指定消息的严重性，它是以下标志之一：
+
+- `VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT`: 诊断信息
+- `VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT`: 提示信息，比如资源的创建
+- `VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT`: 不一定是错误行为的信息，但很可能是应用程序中的Debug
+- `VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT`: 无效会导致崩溃行为的信息
+
+枚举值设置的方式让你可以使用比较操作来检查消息的严重等级，比如：
+
+```c++
+if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    // Message is important enough to show
+    // 消息足够重要需要被显示
+}
+```
+
+messageType参数可以具有以下值：
+
+- `VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT`: 发生了与规格或性能无关的事件
+- `VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT`: 发生了违反规范或表明可能的错误的事情
+- `VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT`:非最优化的Vulkan实践
+
+pCallbackData参数引用VkDebugUtilsMessengerCallbackDataEXT结构，其中包含消息本身的详细信息，最重要的成员是：
+
+- `pMessage`: 以\0结尾的调试信息
+- `pObjects`: 和当前消息有关的Vulkan对象句柄数组
+- `objectCount`: 数组中对象的数量
+
+最后，pUserData参数包含在回调设置期间指定的指针，并允许您将自己的数据传递给它。
+
+回调返回一个布尔值，该布尔值指示是否应终止触发验证层消息的Vulkan调用。如果回调返回true，则调用将中止，并出现VK_ERROR_VALIDATION_FAILED_EXT错误。通常，这仅用于测试验证层本身，因此您应始终返回VK_FALSE。
+
+现在剩下的就是告诉Vulkan回调函数的信息。也许有些令人惊讶，甚至Vulkan中的debug回调也使用需要显式创建和销毁的句柄进行管理。这样的回调是调试消息传递器的一部分，您可以根据需要拥有任意数量的回调。在实例下直接为此句柄添加一个类成员：
+
+```c++
+VkDebugUtilsMessengerEXT debugMessenger;
+```
+
+现在添加一个函数setupDebugMessenger，该函数将在initVulkan中createInstance函数之后调用：
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+}
+
+void setupDebugMessenger() {
+    if (!enableValidationLayers) return;
+
+}
+```
+
+我们需要在结构中填写有关消息传递器和其回调的详细信息：
+
+```c++
+VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
+createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+createInfo.pfnUserCallback = debugCallback;
+createInfo.pUserData = nullptr; // Optional
+```
+
+messageSeverity字段允许您指定要调用回调的所有严重性类型。我在这里指定了所有类型，除了VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT以外，都是为了接收有关可能出现的问题的通知，同时省略了详细的常规调试信息。
+
+类似地，messageType字段可让您过滤回调通知的消息类型。我在这里启用了所有类型。如果它们对您没有用，您可以随时禁用它们。
+
+最后，pfnUserCallback字段指定指向回调函数的指针。您可以选择将指针传递给pUserData字段，该指针将通过pUserData参数传递给回调函数。例如，您可以使用它来传递一个指向HelloTriangleApplication类的指针。
+
+请注意，还有更多方法可以配置验证层消息和调试回调，但对于本教程来说是个不错的起点。请参见[扩展规范](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VK_EXT_debug_utils)获取更多信息。
+
+该结构应该传递给vkCreateDebugUtilsMessengerEXT函数以创建VkDebugUtilsMessengerEXT对象。不幸的是，由于此功能是扩展功能，因此不会自动加载。我们必须使用vkGetInstanceProcAddr自己查找其地址。我们将创建自己的代理函数在后台处理。我已经在HelloTriangleApplication类定义的上方添加了它。
+
+```c++
+VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
+    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    if (func != nullptr) {
+        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+    } else {
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+}
+```
+
+如果无法加载，则vkGetInstanceProcAddr函数将返回nullptr。现在，我们可以调用此函数来创建扩展对象：
+
+```c++
+if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+    throw std::runtime_error("failed to set up debug messenger!");
+}
+```
+
+倒数第二个参数还是我们设置为nullptr的可选分配器回调，除了参数非常简单之外。由于调试传递器特定于我们的Vulkan实例及其层，因此需要将其明确指定为第一个参数。稍后您还将在其他子对象中看到此模式。
+
+还需要通过调用vkDestroyDebugUtilsMessengerEXT来清理VkDebugUtilsMessengerEXT对象。与vkCreateDebugUtilsMessengerEXT类似，该函数需要显式加载。
+
+在CreateDebugUtilsMessengerEXT下面创建另一个代理函数：
+
+```c++
+void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
+    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    if (func != nullptr) {
+        func(instance, debugMessenger, pAllocator);
+    }
+}
+```
+
+确保此函数是静态类函数或该类之外的函数。然后我们可以在清理函数中调用它：
+
+```c++
+void cleanup() {
+    if (enableValidationLayers) {
+        DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+    }
+
+    vkDestroyInstance(instance, nullptr);
+
+    glfwDestroyWindow(window);
+
+    glfwTerminate();
+}
+```
+
+#### Debugging instance creation and destruction
+
+#### 调试实例的创建和销毁
+
+尽管我们现在已经在程序中添加了带有验证层的调试，但是我们还没有涵盖所有内容。 vkCreateDebugUtilsMessengerEXT调用要求已创建有效实例，并且必须在销毁实例之前调用vkDestroyDebugUtilsMessengerEXT。这使我们无法调试vkCreateInstance和vkDestroyInstance调用中的任何问题。
+
+但是，如果您仔细阅读[扩展文档](https://github.com/KhronosGroup/Vulkan-Docs/blob/master/appendices/VK_EXT_debug_utils.txt#L120)，就会发现有一种方法可以专门为这两个函数调用创建一个单独的调试传递器实用程序。它只需要将一个VkDebugUtilsMessengerCreateInfoEXT结构体指针传递给VkInstanceCreateInfo的pNext扩展字段。首先将VkDebugUtilsMessengerCreateInfoEXT结构体的填充提取到一个单独的函数中：
+
+```c++
+void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
+    createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    createInfo.pfnUserCallback = debugCallback;
+}
+
+...
+
+void setupDebugMessenger() {
+    if (!enableValidationLayers) return;
+
+    VkDebugUtilsMessengerCreateInfoEXT createInfo;
+    populateDebugMessengerCreateInfo(createInfo);
+
+    if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+        throw std::runtime_error("failed to set up debug messenger!");
+    }
+}
+```
+
+现在我们可以在createInstance函数中重用它：
+
+debugCreateInfo变量位于if语句之外，以确保在vkCreateInstance调用之前不会将其销毁。通过以这种方式创建一个附加的调试消息传递器，它将在vkCreateInstance和vkDestroyInstance期间自动使用并在此之后进行清理。
+
+#### Testing
+
+#### 测试
+
+现在，让我们有意犯一个错误，以查看运行中的验证层。暂时删除清理函数中对DestroyDebugUtilsMessengerEXT的调用，然后运行程序。退出后，您应该会看到以下内容：
+
+![img](https://vulkan-tutorial.com/images/validation_layer_test.png)
+
+如果要查看哪个调用触发了消息，则可以在消息回调中添加一个断点并查看堆栈跟踪。
+
+#### Configuration
+
+#### 配置
+
+除了VkDebugUtilsMessengerCreateInfoEXT结构中指定的标志外，验证层的行为还有更多的设置。浏览到Vulkan SDK，然后转到Config目录。在那里，您将找到一个vk_layer_settings.txt文件，该文件说明了如何配置调试层。
+
+要为自己的应用程序配置层设置，请将文件复制到项目的Debug和Release目录，然后按照说明进行操作以设置所需的行为。但是，在本教程的其余部分中，我将假定您使用的是默认设置。
+
+在本教程中，我将犯一些故意的错误，以向您展示验证层在捕获它们方面的帮助，并告诉您准确了解您对Vulkan所做的工作有多重要。现在是时候查看系统中的Vulkan设备了。
+
+### Physical devices and queue families
+
+### 物理设备和队列家族
+
+#### Selecting a physical device
+
+#### 选择一个物理设备
+
+通过VkInstance初始化Vulkan库后，我们需要在系统中寻找并选择支持所需功能的图形卡。实际上，我们可以选择任意数量的图形卡并同时使用它们，但是在本教程中，我们将只使用符合我们需求的第一张图形卡。
+
+我们将添加一个函数pickPhysicalDevice，并在initVulkan函数中添加对其的调用。
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    pickPhysicalDevice();
+}
+
+void pickPhysicalDevice() {
+
+}
+```
+
+我们最终选择的图形卡将存储在VkPhysicalDevice句柄中，该句柄作为新的类成员添加。销毁VkInstance时，该对象将被隐式销毁，因此我们无需在清除函数中做任何新的事情。
+
+列出图形卡与列出扩展名非常相似，从查询数量开始。
+
+```c++
+uint32_t deviceCount = 0;
+vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+```
+
+如果有设备支持Vulkan，那么就没有往下继续的必要了。
+
+```c++
+if (deviceCount == 0) {
+    throw std::runtime_error("failed to find GPUs with Vulkan support!");
+}
+```
+
+否则，我们可以分配一个数组来容纳所有VkPhysicalDevice句柄。
+
+```c++
+std::vector<VkPhysicalDevice> devices(deviceCount);
+vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+```
+
+现在，我们需要评估它们中的每一个，并检查它们是否适合我们要执行的操作，因为并非所有图形卡都是相同的。为此，我们将引入一个新函数：
+
+```c++
+bool isDeviceSuitable(VkPhysicalDevice device) {
+    return true;
+}
+```
+
+并且我们将检查是否有任何物理设备满足我们要添加到该函数的要求。
+
+```c++
+for (const auto& device : devices) {
+    if (isDeviceSuitable(device)) {
+        physicalDevice = device;
+        break;
+    }
+}
+
+if (physicalDevice == VK_NULL_HANDLE) {
+    throw std::runtime_error("failed to find a suitable GPU!");
+```
+
+下一节将介绍我们将在isDeviceSuitable函数中检查的第一个需求。在后面的章节中，我们将开始使用更多的Vulkan功能，我们还将对该功能进行扩展以包括更多的检查、
+
+#### Base device suitability checks
+
+#### 基本设备适用性检查
+
+为了评估设备的适用性，我们可以从查询一些细节开始。可以使用vkGetPhysicalDeviceProperties查询基本设备属性，例如名称，类型和受支持的Vulkan版本。
+
+```c++
+VkPhysicalDeviceProperties deviceProperties;
+vkGetPhysicalDeviceProperties(device, &deviceProperties);
+```
+
+可以使用vkGetPhysicalDeviceFeatures查询是否支持可选功能，例如纹理压缩，64位浮点和多视口渲染（对VR有用）：
+
+```c++
+VkPhysicalDeviceFeatures deviceFeatures;
+vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+```
+
+还可以从设备查询更多详细信息，我们将在后面讨论有关设备内存和队列家族的信息（请参阅下一节）。
+
+例如，假设我们的应用程序仅可用于支持几何着色器的专用图形卡。然后，isDeviceSuitable函数将如下所示：
+
+```c++
+bool isDeviceSuitable(VkPhysicalDevice device) {
+    VkPhysicalDeviceProperties deviceProperties;
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+    return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
+           deviceFeatures.geometryShader;
+}
+```
+
+您不仅可以检查设备是否适合并选择第一个设备，还可以给每个设备评分并选择最高的设备。这样，您可以通过给它更高的分数来偏爱专用的图形卡，但是如果那是唯一可用的显卡，则可以使用集成的GPU。您可以实现如下所示的内容：
+
+```c++
+#include <map>
+
+...
+
+void pickPhysicalDevice() {
+    ...
+
+    // Use an ordered map to automatically sort candidates by increasing score
+    std::multimap<int, VkPhysicalDevice> candidates;
+
+    for (const auto& device : devices) {
+        int score = rateDeviceSuitability(device);
+        candidates.insert(std::make_pair(score, device));
+    }
+
+    // Check if the best candidate is suitable at all
+    if (candidates.rbegin()->first > 0) {
+        physicalDevice = candidates.rbegin()->second;
+    } else {
+        throw std::runtime_error("failed to find a suitable GPU!");
+    }
+}
+
+int rateDeviceSuitability(VkPhysicalDevice device) {
+    ...
+
+    int score = 0;
+
+    // Discrete GPUs have a significant performance advantage
+    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+        score += 1000;
+    }
+
+    // Maximum possible size of textures affects graphics quality
+    score += deviceProperties.limits.maxImageDimension2D;
+
+    // Application can't function without geometry shaders
+    if (!deviceFeatures.geometryShader) {
+        return 0;
+    }
+
+    return score;
+}
+```
+
+您无需在本教程中实现所有这些功能，但可以使您了解如何设计设备选择过程。当然，您也可以只显示选择的名称并允许用户选择。
+
+因为我们才刚刚起步，所以Vulkan支持是我们唯一需要的，因此我们将满足于任何GPU：
+
+```c++
+bool isDeviceSuitable(VkPhysicalDevice device) {
+    return true;
+}
+```
+
+在下一节中，我们将讨论要检查的第一个实际必需功能。
+
+#### Queue families
+
+#### 队列家族
+
+在此之前，我们已经简短地提到过Vulkan中几乎所有的操作，从绘图到上传纹理的任何操作，都需要将命令提交到队列中。有不同类型的队列，它们来自不同的队列家族，并且每个队列家族仅允许一个命令的子集。例如，可能有一个仅允许处理计算命令的队列家族，或者仅允许一个与内存传输相关的命令的队列家族。
+
+我们需要检查设备支持哪些队列家族，以及哪些队列家族支持我们要使用的命令。为此，我们将添加一个新函数findQueueFamilies，以查找我们需要的所有队列家族。
+
+```c++
+uint32_t findQueueFamilies(VkPhysicalDevice device) {
+    // Logic to find graphics queue family
+}
+```
+
+但是，在下一章中，我们已经要寻找另一个队列，因此最好为此做准备并将索引包装到一个结构体中：
+
+```c++
+struct QueueFamilyIndices {
+    uint32_t graphicsFamily;
+};
+
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+    QueueFamilyIndices indices;
+    // Logic to find queue family indices to populate struct with
+    return indices;
+}
+```
+
+但是，如果没有可用的队列家族怎么办？我们可以在findQueueFamilies中引发异常，但是此功能实际上并不是做出设备适用性决策的正确位置。例如，我们可能更想要带有专用传输队列家族的设备，但不是必须的。因此，我们需要某种方式来指示是否找到了特定的队列家族。
+
+实际上不可能使用一个魔术值来指示队列家族的不存在，因为从理论上讲uint32_t的任何值都可以是有效的队列家族索引，包括0。幸运的是，C ++ 17引入了一种数据结构来区分值是否存在：
+
+```c++
+#include <optional>
+
+...
+
+std::optional<uint32_t> graphicsFamily;
+
+std::cout << std::boolalpha << graphicsFamily.has_value() << std::endl; // false
+
+graphicsFamily = 0;
+
+std::cout << std::boolalpha << graphicsFamily.has_value() << std::endl; // true
+```
+
+std :: optional是一个包装，在您为其分配值之前，它不包含任何值。您可以随时通过调用其has_value（）成员函数查询其是否包含值。这意味着我们可以将逻辑更改为：
+
+```c++
+#include <optional>
+
+...
+
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+};
+
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+    QueueFamilyIndices indices;
+    // Assign index to queue families that could be found
+    return indices;
+}
+```
+
+现在，我们可以开始实际实现findQueueFamilies了：
+
+```c++
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+    QueueFamilyIndices indices;
+
+    ...
+
+    return indices;
+}
+```
+
+检索队列族列表的过程正是您所期望的，使用vkGetPhysicalDeviceQueueFamilyProperties：
+
+```c++
+uint32_t queueFamilyCount = 0;
+vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+```
+
+VkQueueFamilyProperties结构包含有关队列家族的一些详细信息，包括支持的操作类型以及可以基于该系列创建的队列数量。我们需要找到至少一个支持VK_QUEUE_GRAPHICS_BIT的队列家族。
+
+现在，我们有了队列家族查找功能，可以将其用作isDeviceSuitable函数中的检查，以确保设备可以处理我们要使用的命令:
+
+```c++
+bool isDeviceSuitable(VkPhysicalDevice device) {
+    QueueFamilyIndices indices = findQueueFamilies(device);
+
+    return indices.graphicsFamily.has_value();
+}
+```
+
+为了使此操作更加方便，我们还将对结构本身添加一个通用检查：
+
+```c++
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+
+    bool isComplete() {
+        return graphicsFamily.has_value();
+    }
+};
+
+...
+
+bool isDeviceSuitable(VkPhysicalDevice device) {
+    QueueFamilyIndices indices = findQueueFamilies(device);
+
+    return indices.isComplete();
+```
+
+现在，我们还可以使用它来提前退出findQueueFamilies：
+
+```c++
+for (const auto& queueFamily : queueFamilies) {
+    ...
+
+    if (indices.isComplete()) {
+        break;
+    }
+
+    i++;
+}
+```
+
+很好，这就是我们现在找到合适的物理设备所需的一切！下一步是创建逻辑设备以与其进行交互。
+
+### Logical device and queues
+
+### 逻辑设备和队列
+
+#### Introduction
+
+#### 简介
+
+选择要使用的物理设备后，我们需要设置一个逻辑设备以与其连接。逻辑设备创建过程类似于实例创建过程，并描述了我们要使用的功能。现在，我们已经查询了哪些队列家族可用，因此还需要指定要创建的队列。如果您有不同的要求，甚至可以从同一物理设备创建多个逻辑设备。
+
+首先添加一个新的类成员来存储逻辑设备句柄。
+
+```c++
+VkDevice device;
+```
+
+接下来，添加一个从initVulkan调用的createLogicalDevice函数。
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    pickPhysicalDevice();
+    createLogicalDevice();
+}
+
+void createLogicalDevice() {
+
+}
+```
+
+#### Specifying the queues to be created
+
+#### 指定要创建的队列
+
+逻辑设备的创建涉及再次在结构体中指定一堆详细信息，其中第一个是VkDeviceQueueCreateInfo。此结构体描述了单个队列家族所需的队列数。现在，我们只对具有图形功能的队列感兴趣。
+
+```c++
+QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+VkDeviceQueueCreateInfo queueCreateInfo = {};
+queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+queueCreateInfo.queueCount = 1;
+```
+
+当前可用的驱动程序只允许您为每个队列系列创建少量队列，而您实际上并不需要多个。这是因为您可以在多个线程上创建所有命令缓冲区，然后通过一次低开销调用一次在主线程上全部提交它们。
+
+Vulkan允许您使用0.0到1.0之间的浮点数为队列分配优先级，以影响命令缓冲区执行的调度。即使只有一个队列，这也是必需的：
+
+```c++
+float queuePriority = 1.0f;
+queueCreateInfo.pQueuePriorities = &queuePriority;
+```
+
+#### Specifying used device features
+
+#### 指定使用的设备特性
+
+接下来要指定的信息是我们将要使用的设备特性集。这些是我们在上一章中查询的vkGetPhysicalDeviceFeatures支持的功能，例如几何着色器。现在，我们不需要任何特殊的东西，因此我们可以简单地定义它，并将所有内容保留VK_FALSE。一旦我们开始使用Vulkan做更多有趣的事情，我们将回到这个结构体。
+
+```c++
+VkPhysicalDeviceFeatures deviceFeatures = {};
+```
+
+#### Creating the logical device
+
+#### 创建逻辑设备
+
+有了前面两个结构体，我们可以开始填充最主要的VkDeviceCreateInfo结构体了。
+
+```c++
+VkDeviceCreateInfo createInfo = {};
+createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+```
+
+首先添加指向队列创建信息和设备特性结构体的指针：
+
+```c++
+createInfo.pQueueCreateInfos = &queueCreateInfo;
+createInfo.queueCreateInfoCount = 1;
+
+createInfo.pEnabledFeatures = &deviceFeatures;
+```
+
+其余信息与VkInstanceCreateInfo结构体相似，并且要求您指定扩展和验证层。所不同的是，这一次这些特定于设备。
+
+设备特定扩展的一个示例是VK_KHR_swapchain，它允许您将渲染的图像从该设备呈现到Windows。系统中可能有缺少此功能的Vulkan设备，例如因为它们仅支持计算操作。我们将在交换链这一章中回到这个扩展。
+
+Vulkan的之前实现在实例和特定于设备的验证层之间进行了区分，但是已经不再如此。这意味着最新的实现会忽略VkDeviceCreateInfo的enabledLayerCount和ppEnabledLayerNames字段。但是，仍然将它们设置为与较早的实现兼容是一个好主意：
+
+```c++
+createInfo.enabledExtensionCount = 0;
+
+if (enableValidationLayers) {
+    createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+    createInfo.ppEnabledLayerNames = validationLayers.data();
+} else {
+    createInfo.enabledLayerCount = 0;
+}
+```
+
+我们现在不需要任何设备特定的扩展。
+
+好了，我们现在准备通过调用vkCreateDevice函数来实例化逻辑设备。
+
+```c++
+if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create logical device!");
+}
+```
+
+这些参数是与之交互的物理设备，我们刚刚指定的队列和使用情况信息，可选的分配回调指针以及指向用于存储逻辑设备句柄的变量的指针。类似于实例创建函数，此调用可以返回错误基于启用不存在的扩展或指定不支持的功能。
+
+应该使用vkDestroyDevice函数在清除时销毁该设备：
+
+```c++
+void cleanup() {
+    vkDestroyDevice(device, nullptr);
+    ...
+}
+```
+
+逻辑设备不直接与实例交互，这就是为什么不将其作为参数包含在内的原因。
+
+#### Retrieving queue handles
+
+#### 获取队列句柄
+
+队列是与逻辑设备一起自动创建的，但是我们尚无与之交互的句柄。首先添加一个类成员以存储图形队列的句柄：
+
+```c++
+VkQueue graphicsQueue;
+```
+
+设备销毁时，将隐式清理设备队列，因此我们无需执行任何清理操作。
+
+我们可以使用vkGetDeviceQueue函数来检索每个队列家族的队列句柄。参数是逻辑设备，队列家族，队列索引和指向变量的指针，该变量用于存储队列句柄。由于我们仅从该家族创建单个队列，因此我们将使用索引0。
+
+```c++
+vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+```
+
+有了逻辑设备和队列句柄，我们现在就可以真正开始使用图形卡执行操作了！在接下来的几章中，我们将设置资源以将结果呈现给窗口系统。
+
+## Presentation
+
+## 呈现
+
+### Window surface
+
+### 窗口表面
+
+由于Vulkan是与平台无关的API，因此它无法直接与窗口系统交互。为了在Vulkan和窗口系统之间建立连接以将结果呈现给屏幕，我们需要使用WSI（Window System Integration窗口系统集成）扩展。在本章中，我们将讨论第一个，即VK_KHR_surface。它暴露了一个VkSurfaceKHR对象，该对象表示要呈现渲染图像的抽象表面类型。程序中的表面将由我们已经使用GLFW打开的窗口支持。
+
+VK_KHR_surface扩展是实例级别的扩展，我们实际上已经启用了它，因为它包含在glfwGetRequiredInstanceExtensions返回的列表中。该列表还包括其他一些WSI扩展，我们将在接下来的两章中使用。
+
+窗口表面需要在实例创建之后立即创建，因为它实际上会影响物理设备的选择。我们之所以推迟这样做，是因为窗口表面是渲染目标和表示的较大主题的一部分，对此的解释可能会使基本设置显得混乱。还应注意，如果仅需要离屏渲染，则窗口表面在Vulkan中是完全可选的组件。 Vulkan允许您做到这一点，而无需创建不可见窗口（OpenGL必需）之类的技巧。
+
+#### Window surface creation
+
+#### 窗口表面选择
+
+首先添加一个表面类成员。
+
+```c++
+VkSurfaceKHR surface;
+```
+
+尽管VkSurfaceKHR对象及其用法与平台无关，它的创建却和平台有关，因为它取决于窗口系统的详细信息。例如，它需要Windows上的HWND和HMODULE句柄。因此，该扩展有特定于平台的扩展，在Windows上称为VK_KHR_win32_surface，它也自动包含在glfwGetRequiredInstanceExtensions的列表中。
+
+我将演示如何使用该特定于平台的扩展来在Windows上创建表面，但是在本教程中我们实际上不会使用它。使用诸如GLFW之类的库然后继续使用平台特定的代码毫无意义。 GLFW实际上有一个glfwCreateWindowSurface函数，可以为我们处理平台差异。尽管如此，在我们开始依赖它之前，先看看它在幕后做什么是一件好事。
+
+因为窗口表面是Vulkan对象，所以它带有需要填充的VkWin32SurfaceCreateInfoKHR结构。它具有两个重要参数：hwnd和hinstance。这些是窗口的句柄，
+
+glfwGetWin32Window函数用于从GLFW窗口对象获取原始HWND。调用GetModuleHandle返回当前进程的HINSTANCE句柄。
+
+之后，可以使用vkCreateWin32SurfaceKHR创建表面，该表面包括实例的参数，表面创建详细信息，自定义分配器以及要存储在其中的表面句柄的变量。从技术上讲，这是WSI扩展功能，但它是如此常用标准Vulkan加载程序包括它，因此与其他扩展不同，您无需显式加载它。
+
+```c++
+if (vkCreateWin32SurfaceKHR(instance, &createInfo, nullptr, &surface) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create window surface!");
+}
+```
+
+该过程与其他平台（例如Linux）相似，其中vkCreateXcbSurfaceKHR将XCB连接和窗口作为X11的创建详细信息。
+
+glfwCreateWindowSurface函数针对每个平台使用不同的实现来精确执行此操作。现在，我们将其集成到我们的程序中。在实例创建和setupDebugMessenger之后立即添加要从initVulkan调用的函数createSurface。
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    createSurface();
+    pickPhysicalDevice();
+    createLogicalDevice();
+}
+
+void createSurface() {
+
+}
+```
+
+GLFW调用采用简单的参数而不是结构，这使函数的实现非常简单：
+
+```c++
+void createSurface() {
+    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create window surface!");
+    }
+}
+```
+
+参数是VkInstance，GLFW窗口指针，自定义分配器和指向VkSurfaceKHR变量的指针。它只是通过相关平台调用中的VkResult传递。 GLFW没有提供销毁表面的特殊函数，但是可以通过原始API轻松完成：
+
+```c++
+void cleanup() {
+        ...
+        vkDestroySurfaceKHR(instance, surface, nullptr);
+        vkDestroyInstance(instance, nullptr);
+        ...
+    }
+```
+
+确保在实例之前已销毁表面。
+
+#### Querying for presentation support
+
+#### 查询呈现支持
+
+尽管Vulkan实现可能支持窗口系统集成，但这并不意味着系统中的每个设备都支持它。因此，我们需要扩展isDeviceSuitable以确保设备可以将图像呈现到我们创建的表面上。由于呈现是特定于队列的功能，因此问题实际上出在寻找支持呈现到我们创建的表面的队列家族。
+
+```c++
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
+
+    bool isComplete() {
+        return graphicsFamily.has_value() && presentFamily.has_value();
+    }
+};
+```
+
+接下来，我们将修改findQueueFamilies函数以查找具有呈现到我们的窗口表面的功能的队列家族。用来检查的函数是vkGetPhysicalDeviceSurfaceSupportKHR，它将物理设备，队列家族索引和表面作为参数。在与VK_QUEUE_GRAPHICS_BIT相同的循环中添加对它的调用：
+
+```c++
+VkBool32 presentSupport = false;
+vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+```
+
+然后，只需检查布尔值并存储表示系列队列索引：
+
+```c++
+if (presentSupport) {
+    indices.presentFamily = i;
+}
+```
+
+请注意，最终它们很可能为同一个队列家族，但是在整个程序中，我们将它们视为独立的队列，以采用统一的方法。但是，您可以添加逻辑以明确地使用支持在同一队列中进行绘图和演示的物理设备，以提高性能。
+
+#### Creating the presentation queue
+
+#### 创建呈现队列
+
+剩下的一件事是修改逻辑设备创建过程以创建呈现队列并获得VkQueue句柄。为该句柄添加一个成员变量：
+
+```c++
+VkQueue presentQueue;
+```
+
+接下来，我们需要多个VkDeviceQueueCreateInfo结构体来创建两个家族的队列。一种优雅的做法是创建一组唯一的队列家族，它是必需的队列所需的。
+
+```c++
+
+...
+
+QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+
+float queuePriority = 1.0f;
+for (uint32_t queueFamily : uniqueQueueFamilies) {
+    VkDeviceQueueCreateInfo queueCreateInfo = {};
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueCreateInfo.queueFamilyIndex = queueFamily;
+    queueCreateInfo.queueCount = 1;
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+    queueCreateInfos.push_back(queueCreateInfo);
+}
+```
+
+并修改VkDeviceCreateInfo以指向上面创建的queueCreateInfos容器：
+
+如果队列族相同，那么我们只需传递一次索引。最后，添加一个调用以检索队列句柄：
+
+```c++
+vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+```
+
+如果队列系列相同，则两个句柄现在很可能具有相同的值。在下一章中，我们将研究交换链以及它们如何使我们能够在表面呈现图像。
+
+### Swap Chain
+
+### 交换链
+
+Vulkan没有“默认帧缓冲区”的概念，因此它需要一种基础结构，该基础结构拥有我们将渲染到的缓冲区，然后才能在屏幕上可视化它们。该基础结构被称为交换链，它必须在Vulkan中显式创建。交换链本质上是等待显示在屏幕上的图像队列。我们的应用程序将获取要绘制的图像，然后将其返回到队列。队列的工作方式以及从队列中显示图像的条件取决于交换链的设置方式，但是交换链的一般目的是使图像的显示与屏幕的刷新率同步。
+
+#### Checking for swap chain support
+
+#### 检查交换链支持
+
+由于各种原因，并非所有的图形卡都能够将图像直接显示在屏幕上，例如，因为它们是为服务器设计的，并且没有任何显示输出。其次，由于图像表示与窗口系统以及与窗口相关的表面紧密相关，因此它实际上不是Vulkan核心的一部分。在查询其支持后，必须启用VK_KHR_swapchain设备扩展。
+
+为此，我们将首先扩展isDeviceSuitable函数，以检查是否支持此扩展。前面我们已经看到了如何列出VkPhysicalDevice支持的扩展，因此这样做应该非常简单。请注意，Vulkan头文件提供了一个很棒的宏VK_KHR_SWAPCHAIN_EXTENSION_NAME，该宏定义为VK_KHR_swapchain。使用此宏的优点是编译器将捕获拼写错误。
+
+首先声明所需设备扩展的列表，类似于要启用的验证层的列表。
+
+```c++
+const std::vector<const char*> deviceExtensions = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+```
+
+接下来，创建一个从isDeviceSuitable调用的新功能checkDeviceExtensionSupport作为附加检查：
+
+```c++
+bool isDeviceSuitable(VkPhysicalDevice device) {
+    QueueFamilyIndices indices = findQueueFamilies(device);
+
+    bool extensionsSupported = checkDeviceExtensionSupport(device);
+
+    return indices.isComplete() && extensionsSupported;
+}
+
+bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
+    return true;
+```
+
+修改函数的主体以枚举扩展名，并检查所有必需的扩展名是否在其中。
+
+```c++
+bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
+    uint32_t extensionCount;
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+
+    std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+
+    for (const auto& extension : availableExtensions) {
+        requiredExtensions.erase(extension.extensionName);
+    }
+
+    return requiredExtensions.empty();
+}
+```
+
+我选择在这里使用一组字符串来表示未确认的必需扩展名。这样，我们可以在枚举可用扩展名的序列时轻松地将其勾掉。当然，您也可以像在checkValidationLayerSupport中那样使用嵌套循环。性能差异无关紧要。现在运行代码，并验证您的图形卡确实能够创建交换链。应当注意，如上一章所述，表示队列的可用性意味着必须支持交换链扩展。但是，明确说明仍然是很好的，并且必须明确启用扩展。
+
+#### Enabling device extensions
+
+#### 启用设备扩展
+
+使用交换链要求首先启用VK_KHR_swapchain扩展。启用扩展只需要对逻辑设备创建结构进行少量更改：
+
+```c++
+createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+```
+
+#### Querying details of swap chain support
+
+#### 查询交换链支持细节
+
+仅检查交换链是否可用还不够，因为它实际上可能与我们的窗户表面不兼容。创建交换链还涉及比实例和设备创建更多的设置，因此我们需要查询更多详细信息，然后才能继续。
+
+我们基本上需要检查三种属性：
+
+* 基本表面功能（交换链中图像的最小/最大数量，图像的最小/最大宽度和高度）
+* 表面格式（像素格式，色彩空间）
+* 可用的呈现模式
+
+与findQueueFamilies类似，一旦查询到这些细节，我们将使用一个结构来传递这些细节。前面提到的三种类型的属性以下列结构体和结构体列表的形式出现：
+
+```c++
+struct SwapChainSupportDetails {
+    VkSurfaceCapabilitiesKHR capabilities;
+    std::vector<VkSurfaceFormatKHR> formats;
+    std::vector<VkPresentModeKHR> presentModes;
+};
+```
+
+现在，我们将创建一个新函数querySwapChainSupport，它将填充此结构。
+
+```c++
+SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
+    SwapChainSupportDetails details;
+
+    return details;
+}
+```
+
+本节介绍如何查询包含此信息的结构。下一节将讨论这些结构的含义以及它们包含的确切数据。
+
+让我们从基本的表面功能开始。这些属性易于查询，并返回到单个VkSurfaceCapabilitiesKHR结构中。
+
+```c++
+vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+```
+
+确定支持的功能时，此函数将指定的VkPhysicalDevice和VkSurfaceKHR窗口表面考虑在内。所有支持查询函数都将这两个作为第一个参数，因为它们是交换链的核心组件。
+
+下一步是查询支持的表面格式。因为这是一个结构列表，所以它遵循两个函数调用的熟悉习惯：
+
+```c++
+uint32_t formatCount;
+vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+
+if (formatCount != 0) {
+    details.formats.resize(formatCount);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+}
+```
+
+确保调整容器的大小以容纳所有可用格式。最后，使用vkGetPhysicalDeviceSurfacePresentModesKHR查询支持的表示模式的方式完全相同：
+
+```c++
+uint32_t presentModeCount;
+vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+if (presentModeCount != 0) {
+    details.presentModes.resize(presentModeCount);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+}
+```
+
+现在所有细节都在结构体中，因此让我们再次扩展isDeviceSuitable以利用此函数来验证交换链支持是否足够。如果在我们拥有的窗口表面范围内至少存在一种支持的图像格式和一种支持的呈现模式，那么交换链支持对于本教程就足够了。
+
+```c++
+bool swapChainAdequate = false;
+if (extensionsSupported) {
+    SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+    swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+}
+```
+
+重要的是，我们仅在验证扩展可用后才尝试查询交换链支持。函数的最后一行更改为：
+
+```c++
+return indices.isComplete() && extensionsSupported && swapChainAdequate;
+```
+
+#### Choosing the right settings for the swap chain
+
+#### 为交换链选择正确的配置
+
+如果满足swapChainAdequate条件，则支持肯定足够，但可能仍存在许多不同的最优模式。现在，我们将编写一些函数来找到正确的设置，以实现最佳的交换链。可以通过三种类型的设置来确定：
+
+* 表面格式（颜色深度）
+* 呈现模式（将图像“交换”到屏幕的条件）
+* 交换范围（交换链中图像的分辨率）
+
+对于这些设置中的每一个，我们都将牢记一个理想的值，如果可用，我们将与之保持一致，否则，我们将创建一些逻辑来寻找下一个最好的选择。
+
+##### Surface format
+
+##### 表面格式
+
+表面格式设定函数一开始是这样的，稍后，我们将SwapChainSupportDetails结构的formats成员作为参数传递。
+
+```c++
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+
+}
+```
+
+每个VkSurfaceFormatKHR条目均包含format和colorSpace成员。format成员指定颜色通道和类型。例如，VK_FORMAT_B8G8R8A8_SRGB表示我们以8位无符号整数的顺序存储B，G，R和alpha通道，每个像素总共32位。 colorSpace成员使用VK_COLOR_SPACE_SRGB_NONLINEAR_KHR标志指示是否支持SRGB颜色空间。请注意，在规范的旧版本中，此标志以前称为VK_COLORSPACE_SRGB_NONLINEAR_KHR。
+
+对于色彩空间，我们将使用SRGB（如果可用），因为它可以产生更准确的感知颜色。它还几乎是图像的标准颜色空间，例如稍后将要使用的纹理。因此，我们还应该使用SRGB颜色格式，其中最常见的一种是VK_FORMAT_B8G8R8A8_SRGB。
+
+让我们浏览一下列表，看看是否可以使用首选组合：
+
+```c++
+for (const auto& availableFormat : availableFormats) {
+    if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+        return availableFormat;
+    }
+}
+```
+
+如果仍然失败，那么我们可以根据它们的“好”程度开始对可用格式进行排名，但是在大多数情况下，只需要使用指定的第一种格式就可以了。
+
+
+
+##### Presentation mode
+
+##### 呈现模式
+
+##### Swap extent
+
+##### 交换范围
 
