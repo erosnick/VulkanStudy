@@ -2332,33 +2332,223 @@ viewportState.scissorCount = 1;
 viewportState.pScissors = &scissor;
 ```
 
-
-
 #### Rasterizer
 
 #### 光栅化器
 
-#### Multisampling
+光栅化器从顶点着色器获取由顶点成形的几何形状，并将其转换为片段，以由片段着色器着色。它还执行深度测试，面剔除和剪裁测试，并且可以配置为输出填充整个多边形或仅填充边缘的片段（线框渲染）。所有这些都是使用VkPipelineRasterizationStateCreateInfo结构体配置的。
+
+```c++
+VkPipelineRasterizationStateCreateInfo rasterizer = {};
+rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+rasterizer.depthClampEnable = VK_FALSE;
+```
+
+如果将depthClampEnable设置为VK_TRUE，则将近平面和远平面之外的片段限制到它们，而不是丢弃它们。这在某些特殊情况下（例如阴影贴图）很有用。使用此功能需要启用GPU特性。
+
+```c++
+rasterizer.rasterizerDiscardEnable = VK_FALSE;
+```
+
+如果rasterizerDiscardEnable设置为VK_TRUE，则几何图形永远不会通过光栅化程序阶段。基本上，这会禁用任何输出到帧缓冲区的功能。
+
+```c++
+rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+```
+
+polygonMode确定如何为几何生成片段。可以使用以下模式：
+
+* VK_POLYGON_MODE_FILL：用片段填充多边形区域
+* VK_POLYGON_MODE_LINE：将多边形的边绘制为线
+* VK_POLYGON_MODE_POINT：将多边形顶点绘制为点
+
+使用除填充以外的任何模式都需要启用GPU特性。
+
+```c++
+rasterizer.lineWidth = 1.0f;
+```
+
+lineWidth成员很简单，它以片段的数量描述线条的粗细。支持的最大线宽取决于硬件，并且任何厚度大于1.0f的线都需要启用wideLines GPU特性。
+
+```
+rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+```
+
+cullMode变量确定要使用的面剔除类型。您可以禁用剔除，删除正面，删除背面或同时禁用这两者。 frontFace变量指定将面视为正面的顶点顺序，可以是顺时针或逆时针。
+
+```c++
+rasterizer.depthBiasEnable = VK_FALSE;
+rasterizer.depthBiasConstantFactor = 0.0f; // Optional
+rasterizer.depthBiasClamp = 0.0f; // Optional
+rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
+```
+
+光栅化器可以通过添加恒定值或基于片段的斜率对深度值进行偏置来更改深度值。有时用于阴影贴图，但我们不会使用它。只需将depthBiasEnable设置为VK_FALE。
+
+#### Multisampling 
 
 #### 多重采样
+
+VkPipelineMultisampleStateCreateInfo结构体配置多重采样，这是执行抗锯齿的方法之一。它通过组合光栅化到同一像素的多个多边形的片段着色器结果来工作。这主要发生在边缘，这也是最明显的锯齿瑕疵发生的地方。因为如果仅一个多边形映射到一个像素，它不需要多次运行片段着色器，所以它比简单地渲染为更高的分辨率然后进行向下采样代价要小得多。启用它需要启用GPU特性。
+
+```c++
+VkPipelineMultisampleStateCreateInfo multisampling = {};
+multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+multisampling.sampleShadingEnable = VK_FALSE;
+multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+multisampling.minSampleShading = 1.0f; // Optional
+multisampling.pSampleMask = nullptr; // Optional
+multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
+multisampling.alphaToOneEnable = VK_FALSE; // Optional
+```
+
+我们将在后面的章节中重新介绍多重采样，现在让我们禁用它。
 
 #### Depth and stencil testing
 
 #### 深度和模板测试
 
+如果使用深度和/或模板缓冲区，则还需要使用VkPipelineDepthStencilStateCreateInfo配置深度和模板测试。我们现在没有使用，所以我们可以简单地传递一个nullptr而不是指向这种结构的指针。我们将在深度缓冲一章中再次介绍它。
+
 #### Color Blending
 
 #### 颜色混合
+
+片段着色器返回颜色后，需要将其与帧缓冲区中已经存在的颜色合并。这种转换称为颜色混合，有两种方法可以实现：
+
+* 混合新旧值以产生最终颜色
+* 使用按位运算将新旧值合并
+
+有两种类型的结构可配置颜色混合。第一个结构VkPipelineColorBlendAttachmentState包含每个附加帧缓冲区的配置，第二个结构VkPipelineColorBlendStateCreateInfo包含全局颜色混合设置。在我们的例子中，我们只有一个帧缓冲区：
+
+```c++
+VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+colorBlendAttachment.blendEnable = VK_FALSE;
+colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
+colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
+colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
+colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
+colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
+colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
+```
+
+这种每帧缓冲区结构允许您配置颜色混合的第一种方法。使用以下伪代码可以最好地演示将要执行的操作：
+
+```c++
+if (blendEnable) {
+    finalColor.rgb = (srcColorBlendFactor * newColor.rgb) <colorBlendOp> (dstColorBlendFactor * oldColor.rgb);
+    finalColor.a = (srcAlphaBlendFactor * newColor.a) <alphaBlendOp> (dstAlphaBlendFactor * oldColor.a);
+} else {
+    finalColor = newColor;
+}
+
+finalColor = finalColor & colorWriteMask;
+```
+
+如果blendEnable设置为VK_FALSE，则来自片段着色器的新颜色将未经修改地传递。否则，将执行两次混合操作以计算新的颜色。生成的颜色与colorWriteMask进行“与”运算，以确定实际通过哪些通道。
+
+使用颜色混合的最常见方法是实现Alpha混合，在此我们希望根据新颜色的不透明度将新颜色与旧颜色混合。然后，finalColor的计算应如下所示：
+
+```c++
+finalColor.rgb = newAlpha * newColor + (1 - newAlpha) * oldColor;
+finalColor.a = newAlpha.a;
+```
+
+这可以通过以下参数来完成：
+
+```c++
+colorBlendAttachment.blendEnable = VK_TRUE;
+colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+```
+
+您可以在规范的VkBlendFactor和VkBlendOp枚举中找到所有可能的操作。
+
+第二个结构引用所有帧缓冲区的结构数组，并允许您设置混合常数，您可以在上述计算中将其用作混合因子。
+
+```c++
+VkPipelineColorBlendStateCreateInfo colorBlending = {};
+colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+colorBlending.logicOpEnable = VK_FALSE;
+colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional
+colorBlending.attachmentCount = 1;
+colorBlending.pAttachments = &colorBlendAttachment;
+colorBlending.blendConstants[0] = 0.0f; // Optional
+colorBlending.blendConstants[1] = 0.0f; // Optional
+colorBlending.blendConstants[2] = 0.0f; // Optional
+colorBlending.blendConstants[3] = 0.0f; // Optional
+```
+
+如果要使用第二种混合方法（按位组合），则应将logicOpEnable设置为VK_TRUE。然后可以在逻辑操作字段中指定按位运算。请注意，这将自动禁用第一种方法，就像您为每个连接的帧缓冲区将blendEnable设置为VK_FALSE一样！在此模式下，还将使用colorWriteMask确定帧缓冲区中的哪些通道实际受到影响。就像我们在这里所做的那样，也可以禁用这两种模式，在这种情况下，片段颜色将未经修改地写入帧缓冲区。
 
 #### Dynamic state
 
 #### 动态状态
 
+实际上，我们在前面的结构中指定的有限数量的状态可以更改，而无需重新创建管线。例如，视口的大小，线宽和混合常数。如果要这样做，则必须填写VkPipelineDynamicStateCreateInfo结构，如下所示：
+
+```c++
+VkDynamicState dynamicStates[] = {
+    VK_DYNAMIC_STATE_VIEWPORT,
+    VK_DYNAMIC_STATE_LINE_WIDTH
+};
+
+VkPipelineDynamicStateCreateInfo dynamicState = {};
+dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+dynamicState.dynamicStateCount = 2;
+dynamicState.pDynamicStates = dynamicStates;
+```
+
+这将导致这些值的配置被忽略，并且您将需要在绘制时指定数据。我们将在以后的章节中再次讨论。如果您没有任何动态状态，则以后可以用nullptr代替此结构。
+
 #### Pipeline layout
 
 #### 管线布局
+
+您可以在着色器中使用uniform值，这些uniform值类似于可在绘制时更改的动态状态变量的全局值，以更改着色器的行为而不必重新创建它们。它们通常用于将转换矩阵传递到顶点着色器，或在片段着色器中创建纹理采样器。
+
+这些uniform值需要在管线创建期间通过创建VkPipelineLayout对象来指定。即使我们在以后的章节中不会使用它们，仍然需要创建一个空的管线布局。
+
+创建一个类成员来保存此对象，因为稍后我们将从其他函数中引用它：
+
+```c++
+VkPipelineLayout pipelineLayout;
+```
+
+然后在createGraphicsPipeline函数中创建对象：
+
+```c++
+VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+pipelineLayoutInfo.setLayoutCount = 0; // Optional
+pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
+pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+
+if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+}
+```
+
+该结构还指定了推送常量，这是将动态值传递给着色器的另一种方式，我们可能会在以后的章节中介绍它。在程序的整个生命周期中都将引用管线布局，因此应在最后将其销毁：
+
+```c++
+void cleanup() {
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    ...
+}
+```
 
 #### Conclusion
 
 #### 总结
 
+所有固定功能状态就这么多了！从头开始设置所有这些是很多工作，但是优点是我们现在几乎完全了解了图形管显中正在发生的一切！因为某些组件的默认状态不是您期望的，所以这减少了发生意外行为的机会。
+
+但是，在最终创建图形管道之前，还有一个对象需要创建，那就是渲染过程。
