@@ -2802,3 +2802,384 @@ void cleanup() {
 ```
 
 现在运行您的程序，以确认所有这些辛勤工作已成功完成了管线的创建！我们已经差不多可以看到屏幕上蹦出一些东西。在接下来的几章中，我们将从交换链图像中设置实际的帧缓冲区，并准备绘图命令。
+
+## Drawing
+
+## 绘制
+
+### Framebuffers
+
+###  帧缓冲
+
+在过去的几章中，我们讨论了很多帧缓冲区，并且设置了渲染过程以期望具有与交换链图像相同格式的单个帧缓冲区，但实际上尚未创建任何帧缓冲区。
+
+通过在渲染过程创建期间指定的附件，可以通过将它们包装到VkFramebuffer对象中来绑定。帧缓冲区对象引用了代表附件的所有VkImageView对象。在我们的例子中，只有一个：颜色附件。但是，我们必须用于附件的图像取决于交换链为呈现请求时返回的图像。这意味着我们必须为交换链中的所有图像创建一个帧缓冲区，并在绘制时使用与检索到的图像相对应的帧缓冲区。
+
+为此，创建另一个std :: vector类成员以保存帧缓冲区：
+
+```c++
+std::vector<VkFramebuffer> swapChainFramebuffers;
+```
+
+我们将在创建图形管线后立即在initVulkan中调用的新函数createFramebuffers中为此数组创建对象：
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    createSurface();
+    pickPhysicalDevice();
+    createLogicalDevice();
+    createSwapChain();
+    createImageViews();
+    createRenderPass();
+    createGraphicsPipeline();
+    createFramebuffers();
+}
+
+...
+
+void createFramebuffers() {
+
+}
+```
+
+通过调整容器大小以容纳所有帧缓冲区来开始：
+
+```c++
+void createFramebuffers() {
+    swapChainFramebuffers.resize(swapChainImageViews.size());
+}
+```
+
+然后，我们将遍历图像视图并从中创建帧缓冲区：
+
+```c++
+for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+    VkImageView attachments[] = {
+        swapChainImageViews[i]
+    };
+
+    VkFramebufferCreateInfo framebufferInfo = {};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = renderPass;
+    framebufferInfo.attachmentCount = 1;
+    framebufferInfo.pAttachments = attachments;
+    framebufferInfo.width = swapChainExtent.width;
+    framebufferInfo.height = swapChainExtent.height;
+    framebufferInfo.layers = 1;
+
+    if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create framebuffer!");
+    }
+}
+```
+
+如您所见，创建帧缓冲区非常简单。我们首先需要指定帧缓冲区需要与哪个renderPass兼容。您只能将帧缓冲区与兼容的渲染通道一起使用，这大致意味着它们使用相同数量和类型的附件。
+
+attachmentCount和pAttachments参数指定VkImageView对象，该对象应绑定到渲染过程pAttachment数组中的相应附件描述。
+
+width和height参数是不言自明的，layers表示图像阵列中的层数。我们的交换链图像是单张图像，因此层数为1。
+
+我们应该在图像视图和渲染通过之前删除帧缓冲区，但仅在完成渲染之后：
+
+```c++
+void cleanup() {
+    for (auto framebuffer : swapChainFramebuffers) {
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    }
+
+    ...
+}
+```
+
+现在，我们已经到达了里程碑，拥有了渲染所需的所有对象。在下一章中，我们将编写第一个实际的绘图命令。
+
+### Command buffers
+
+### 命令缓冲
+
+Vulkan中的命令（例如绘图操作和内存传输）不会直接使用函数调用执行。您必须将要执行的所有操作记录在命令缓冲区对象中。这样做的好处是，可以提前并在多个线程中完成设置绘图命令的所有艰苦工作。之后，您只需要告诉Vulkan在主循环中执行命令即可。
+
+#### Command pools
+
+#### 命令池
+
+我们必须先创建命令池，然后才能创建命令缓冲区。命令池管理用于存储缓冲区的内存，并从中分配命令缓冲区。添加一个新的类成员以存储VkCommandPool：
+
+```c++
+VkCommandPool commandPool;
+```
+
+然后创建一个新函数createCommandPool，并在创建帧缓冲区后从initVulkan调用它。
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    createSurface();
+    pickPhysicalDevice();
+    createLogicalDevice();
+    createSwapChain();
+    createImageViews();
+    createRenderPass();
+    createGraphicsPipeline();
+    createFramebuffers();
+    createCommandPool();
+}
+
+...
+
+void createCommandPool() {
+
+}
+```
+
+创建命令池仅需要两个参数：
+
+```c++
+QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+VkCommandPoolCreateInfo poolInfo = {};
+poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+poolInfo.flags = 0; // Optional
+```
+
+通过将命令缓冲区提交到设备队列之一（例如我们检索到的图形和呈现队列）来执行命令缓冲区。每个命令池只能分配在单一队列类型上提交的命令缓冲区。我们将记录用于绘制的命令，这就是为什么我们选择了图形队列系列的原因。
+
+命令池有两个可能的标志：
+
+* VK_COMMAND_POOL_CREATE_TRANSIENT_BIT：提示频繁使用新命令重新记录命令缓冲区（可能会更改内存分配行为）
+* VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT：允许单独重新记录命令缓冲区，没有此标志，它们都必须一起重置
+
+我们将只在程序开始时记录命令缓冲区，然后在主循环中多次执行它们，因此我们不会使用这两个标志。
+
+```c++
+if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create command pool!");
+}
+```
+
+使用vkCreateCommandPool函数完成命令池的创建。它没有任何特殊参数。在整个程序中将使用命令在屏幕上绘制内容，因此仅应在最后销毁该命令池：
+
+```c++
+void cleanup() {
+    vkDestroyCommandPool(device, commandPool, nullptr);
+
+    ...
+}
+```
+
+#### Command buffer allocation
+
+#### 命令缓冲和分配
+
+现在，我们可以开始分配命令缓冲区并在其中记录绘图命令。由于其中一个绘制命令涉及绑定正确的VkFramebuffer，因此实际上我们必须再次为交换链中的每个图像记录一个命令缓冲区。为此，创建一个VkCommandBuffer对象列表作为类成员。命令缓冲区销毁后，命令缓冲区将自动释放，因此我们不需要显式清理。
+
+```c++
+std::vector<VkCommandBuffer> commandBuffers;
+```
+
+现在，我们将开始使用createCommandBuffers函数，该函数为每个交换链映像分配和记录命令。
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    createSurface();
+    pickPhysicalDevice();
+    createLogicalDevice();
+    createSwapChain();
+    createImageViews();
+    createRenderPass();
+    createGraphicsPipeline();
+    createFramebuffers();
+    createCommandPool();
+    createCommandBuffers();
+}
+
+...
+
+void createCommandBuffers() {
+    commandBuffers.resize(swapChainFramebuffers.size());
+}
+```
+
+使用vkAllocateCommandBuffers函数分配命令缓冲区，该函数采用VkCommandBufferAllocateInfo结构作为参数，该结构指定命令池和要分配的缓冲区数：
+
+```c++
+VkCommandBufferAllocateInfo allocInfo = {};
+allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+allocInfo.commandPool = commandPool;
+allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
+
+if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+    throw std::runtime_error("failed to allocate command buffers!");
+}
+```
+
+level参数指定分配的命令缓冲区是主要还是辅助命令缓冲区。
+
+* VK_COMMAND_BUFFER_LEVEL_PRIMARY：可以提交到队列中执行，但是不能从其他命令缓冲区调用。
+* VK_COMMAND_BUFFER_LEVEL_SECONDARY：无法直接提交，但是可以从主命令缓冲区中调用。
+
+我们在这里不会使用辅助命令缓冲区功能，但是您可以想象，重用主要命令缓冲区中的常用操作会有所帮助。
+
+#### Starting commandbuffer recording
+
+#### 开始命令缓冲记录
+
+我们通过调用带有一个小的VkCommandBufferBeginInfo结构的vkBeginCommandBuffer作为参数来开始记录命令缓冲区，该结构指定了有关此特定命令缓冲区用法的一些详细信息。
+
+```c++
+for (size_t i = 0; i < commandBuffers.size(); i++) {
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = 0; // Optional
+    beginInfo.pInheritanceInfo = nullptr; // Optional
+
+    if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
+        throw std::runtime_error("failed to begin recording command buffer!");
+    }
+}
+```
+
+flags参数指定我们将如何使用命令缓冲区。提供以下值：
+
+* VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT：执行一次命令缓冲区后，将立即重新记录该命令缓冲区。
+* VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT：这是辅助命令缓冲区，将完全在单个渲染过程中。
+* VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT：可以重新提交命令缓冲区，同时也要等待执行。
+  这些标志目前都不适用于我们。
+
+pInheritanceInfo参数仅与辅助命令缓冲区有关。它指定要从调用的主命令缓冲区继承的状态。
+
+如果命令缓冲区已被记录一次，则对vkBeginCommandBuffer的调用将隐式重置它。以后无法将命令附加到缓冲区。
+
+#### Startinga renderpass
+
+#### 开始渲染过程
+
+绘制通过以vkCmdBeginRenderPass开始渲染过程开始。使用VkRenderPassBeginInfo结构中的一些参数配置渲染过程。
+
+```c++
+VkRenderPassBeginInfo renderPassInfo = {};
+renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+renderPassInfo.renderPass = renderPass;
+renderPassInfo.framebuffer = swapChainFramebuffers[i];
+```
+
+第一个参数是渲染过程本身和要绑定的附件。我们为每个交换链图像创建了一个帧缓冲区，将其指定为颜色附件。
+
+```c++
+renderPassInfo.renderArea.offset = {0, 0};
+renderPassInfo.renderArea.extent = swapChainExtent;
+```
+
+接下来的两个参数定义渲染区域的大小。渲染区域定义了着色器加载和存储的位置。该区域之外的像素将具有不确定的值。它应与附件的大小相匹配，以获得最佳性能。
+
+```c++
+VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+renderPassInfo.clearValueCount = 1;
+renderPassInfo.pClearValues = &clearColor;
+```
+
+最后两个参数定义用于VK_ATTACHMENT_LOAD_OP_CLEAR的清除值，我们将其用作颜色附件的加载操作。我将透明颜色定义为具有100％不透明度的黑色。
+
+```c++
+vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+```
+
+现在可以开始渲染过程。记录命令的所有功能都可以通过其vkCmd前缀识别。它们全都返回void，因此在完成记录之前不会进行任何错误处理。
+
+每个命令的第一个参数始终是记录命令的命令缓冲区。第二个参数指定我们刚刚提供的渲染过程的详细信息。最终参数控制如何在渲染过程中提供绘制命令。它可以具有两个值之一：
+
+* VK_SUBPASS_CONTENTS_INLINE：渲染传递命令将嵌入在主命令缓冲区本身中，并且不会执行任何辅助命令缓冲区。
+* VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS：渲染传递命令将从辅助命令缓冲区执行。
+
+我们不会使用辅助命令缓冲区，因此我们将使用第一个选项。
+
+#### Basic drawing commands
+
+#### 基本渲染命令
+
+现在，我们可以绑定图形管线：
+
+```c++
+vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+```
+
+第二个参数指定管线对象是图形管线还是计算管线。现在，我们告诉Vulkan在图形管线中执行哪些操作，以及在片段着色器中使用哪个附件，因此剩下的就是告诉它绘制三角形：
+
+```c++
+vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+```
+
+实际的vkCmdDraw函数有点虎头蛇尾，但由于我们预先指定的所有信息，它是如此简单。除命令缓冲区外，它还具有以下参数：
+
+* vertexCount：即使我们没有顶点缓冲区，从技术上讲，我们仍然要绘制3个顶点。
+* instanceCount：用于实例渲染，如果不这样做，则使用1。
+* firstVertex：用作顶点缓冲区的偏移量，定义gl_VertexIndex的最小值。
+* firstInstance：用作实例渲染的偏移量，定义gl_InstanceIndex的最小值。
+
+#### Finishing up
+
+#### 结束
+
+现在可以结束渲染过程：
+
+```c++
+vkCmdEndRenderPass(commandBuffers[i]);
+```
+
+至此，我们已经完成了命令缓冲区的记录：
+
+```c++
+if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+    throw std::runtime_error("failed to record command buffer!");
+}
+```
+
+在下一章中，我们将编写主循环的代码，该循环将从交换链获取一个图像，执行正确的命令缓冲区，并将完成的图像返回到交换链。
+
+### Rendering and presentation
+
+### 渲染和呈现
+
+#### Setup
+
+#### 设置
+
+#### Synchronization
+
+#### 同步
+
+#### Semaphores
+
+#### 信号量
+
+#### Acquiring an image from the swap chain
+
+#### 从交换链获取一张图像
+
+#### Submitting the command buffer
+
+#### 提交命令缓冲
+
+#### Subpass dependencies
+
+#### 子过程依赖
+
+#### Presentation
+
+#### 呈现
+
+#### Frames in flight
+
+#### 进行中的帧
+
+#### Conclusion
+
+#### 总结
+
