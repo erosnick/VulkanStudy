@@ -1447,6 +1447,7 @@ if (presentModeCount != 0) {
 
 ```c++
 bool swapChainAdequate = false;
+bool swapChainAdequate = false;
 if (extensionsSupported) {
     SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
     swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
@@ -1467,7 +1468,7 @@ return indices.isComplete() && extensionsSupported && swapChainAdequate;
 
 * 表面格式（颜色深度）
 * 呈现模式（将图像“交换”到屏幕的条件）
-* 交换范围（交换链中图像的分辨率）
+* 交换尺寸（交换链中图像的分辨率）
 
 对于这些设置中的每一个，我们都将牢记一个理想的值，如果可用，我们将与之保持一致，否则，我们将创建一些逻辑来寻找下一个最好的选择。
 
@@ -1497,15 +1498,867 @@ for (const auto& availableFormat : availableFormats) {
 }
 ```
 
-如果仍然失败，那么我们可以根据它们的“好”程度开始对可用格式进行排名，但是在大多数情况下，只需要使用指定的第一种格式就可以了。
+如果仍然失败，那么我们可以根据它们的“良好”程度开始对可用格式进行排名，但是在大多数情况下，只需要使用指定的第一种格式就可以了。
 
+```c++
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+    for (const auto& availableFormat : availableFormats) {
+        if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            return availableFormat;
+        }
+    }
 
+    return availableFormats[0];
+}
+```
 
 ##### Presentation mode
 
 ##### 呈现模式
 
+呈现模式可以说是交换链最重要的设置，因为它代表了在屏幕上显示图像的实际条件。 Vulkan有四种可能的模式：
+
+* VK_PRESENT_MODE_IMMEDIATE_KHR：您的应用程序提交的图像会立即传输到屏幕上，这可能会导致撕裂。
+* VK_PRESENT_MODE_FIFO_KHR：交换链是一个队列，当刷新显示时，显示器从队列的前面获取图像，并且程序将渲染的图像插入队列的后面。如果队列已满，则程序必须等待。这与现代游戏中的垂直同步最为相似。刷新显示的那一刻被称为“垂直空白”。
+* VK_PRESENT_MODE_FIFO_RELAXED_KHR：仅当应用程序延迟并且队列在最后一个垂直空白处为空时，此模式才与前一个模式不同。当图像最终到达时，将立即传输图像，而不是等待下一个垂直空白。这可能会导致可见的撕裂。
+* VK_PRESENT_MODE_MAILBOX_KHR：这是第二种模式的另一种变化。当队列已满时，不会阻塞应用程序，而是将已经排队的图像替换为更新的图像。此模式可用于实现三重缓冲，与使用双缓冲的标准垂直同步相比，它可以避免撕裂，并显着减少了延迟问题。
+
+只有VK_PRESENT_MODE_FIFO_KHR模式确保是可用，因此我们再次必须编写一个函数来寻找可用的最佳模式：
+
+```c++
+VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
+    return VK_PRESENT_MODE_FIFO_KHR;
+}
+```
+
+我个人认为三重缓冲是一个非常好的折衷方案。通过渲染尽可能新的新图像直至垂直空白，它使我们避免了撕裂，同时仍保持相当低的延迟。因此，让我们浏览一下列表以查看是否可用：
+
+```c++
+VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
+    for (const auto& availablePresentMode : availablePresentModes) {
+        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            return availablePresentMode;
+        }
+    }
+
+    return VK_PRESENT_MODE_FIFO_KHR;
+}
+```
+
 ##### Swap extent
 
-##### 交换范围
+##### 交换尺寸
+
+剩下仅一个主要属性，为此我们将添加最后一个函数：
+
+```c++
+VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
+
+}
+```
+
+交换尺寸是交换链图像的分辨率，它几乎始终等于我们要绘制到的窗口的分辨率。可能的分辨率尺寸在VkSurfaceCapabilitiesKHR结构中定义。 Vulkan告诉我们通过在currentExtent成员中设置宽度和高度来匹配窗口的分辨率。但是，某些窗口管理器确实允许我们在这里有所不同，这可以通过将currentExtent中的宽度和高度设置为特殊值来表示：uint32_t的最大值。在这种情况下，我们将选择与minImageExtent和maxImageExtent边界内的窗口最匹配的分辨率。
+
+```c++
+#include <cstdint> // Necessary for UINT32_MAX
+
+...
+
+VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
+    if (capabilities.currentExtent.width != UINT32_MAX) {
+        return capabilities.currentExtent;
+    } else {
+        VkExtent2D actualExtent = {WIDTH, HEIGHT};
+
+        actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
+        actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
+
+        return actualExtent;
+    }
+}
+```
+
+此处使用max和min函数将WIDTH和HEIGHT的值限制在实现支持的允许的最小和最大范围之间。确保包括<algorithm>头文件以使用它们。
+
+#### Creating the swap chain
+
+#### 创建交换链
+
+现在，我们拥有所有这些帮助程序功能来帮助我们在运行时进行选择，我们终于有了创建能够工作的交换链所需的所有信息。
+
+创建一个createSwapChain函数，该函数从这些调用的结果开始，并确保在创建逻辑设备后从initVulkan
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    createSurface();
+    pickPhysicalDevice();
+    createLogicalDevice();
+    createSwapChain();
+}
+
+void createSwapChain() {
+    SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+
+    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+    VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+    VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+```
+
+除了这些属性外，我们还必须确定交换链中要包含多少个图像。该实现指定其运行所需的最小数量：
+
+```c++
+uint32_t imageCount = swapChainSupport.capabilities.minImageCount;
+```
+
+但是，只用最小值意味着我们有时可能需要等待驱动程序完成内部操作，然后才能获取要渲染的另一张图像。因此，建议您至少多请求一张图片：
+
+```c++
+uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+```
+
+在执行此操作时，我们还应确保不超过最大图像数，其中0是一个特殊值，表示没有最大图像数：
+
+```c++
+if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
+    imageCount = swapChainSupport.capabilities.maxImageCount;
+}
+```
+
+与Vulkan对象的传统一样，创建交换链对象需要填充大型结构体。它的开头我们非常熟悉：
+
+```c++
+VkSwapchainCreateInfoKHR createInfo = {};
+createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+createInfo.surface = surface;
+```
+
+在指定交换链应绑定到哪个表面之后，将指定交换链图像的详细信息：
+
+```c++
+createInfo.minImageCount = imageCount;
+createInfo.imageFormat = surfaceFormat.format;
+createInfo.imageColorSpace = surfaceFormat.colorSpace;
+createInfo.imageExtent = extent;
+createInfo.imageArrayLayers = 1;
+createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+```
+
+imageArrayLayers指定每个图像组成的层数。除非您正在开发立体3D应用程序，否则始终为1。 imageUsage位字段指定我们将对交换链中的图像执行哪种操作。在本教程中，我们将直接对其进行渲染，这意味着它们将用作颜色附件。也有可能首先将图像渲染为单独的图像，以执行诸如后处理之类的操作。在这种情况下，您可以改用VK_IMAGE_USAGE_TRANSFER_DST_BIT之类的值，并使用内存操作将渲染的图像传输到交换链图像。
+
+```c++
+QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+
+if (indices.graphicsFamily != indices.presentFamily) {
+    createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+    createInfo.queueFamilyIndexCount = 2;
+    createInfo.pQueueFamilyIndices = queueFamilyIndices;
+} else {
+    createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    createInfo.queueFamilyIndexCount = 0; // Optional
+    createInfo.pQueueFamilyIndices = nullptr; // Optional
+}
+```
+
+接下来，我们需要指定如何处理将在多个队列系列中使用的交换链图像。如果在我们的应用程序中图形队列家族与呈现队列不同。我们将从图形队列中绘制交换链中的图像，然后将其提交到演示队列中。有两种方法可以处理从多个队列访问的图像：
+
+VK_SHARING_MODE_EXCLUSIVE：图像一次由一个队列族拥有，并且必须在另一个队列族中使用它之前显式转移所有权。此选项提供最佳性能。
+VK_SHARING_MODE_CONCURRENT：可以在多个队列族之间使用图像，而无需显式所有权转移。
+
+如果队列系列不同，那么在本教程中我们将使用并发模式以避免制作所有权相关章节，因为涉及一些概念，这些概念在以后会得到更好的解释。并发模式要求您预先使用queueFamilyIndexCount和pQueueFamilyIndices参数指定要在哪个队列家族所有权之间进行共享。如果图形队列家族和演示队列家族相同（在大多数硬件上都是这种情况），那么我们应该使用独占模式，因为并发模式要求您至少指定两个不同的队列家族。
+
+```c++
+createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+```
+
+如果支持的话，则可以指定对交换链中的图像进行某种变换（capabilities中的supportedTransforms），例如顺时针旋转90度或水平翻转。如果您不希望进行任何转换，只需指定currentTransform即可。
+
+```c++
+createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+```
+
+compositeAlpha字段指定是否应将alpha通道用于与窗口系统中的其他窗口混合。您几乎总是想简单地忽略Alpha通道，因此使用VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR。
+
+```c++
+createInfo.presentMode = presentMode;
+createInfo.clipped = VK_TRUE;
+```
+
+presentMode成员不言自明。如果将裁剪的成员设置为VK_TRUE，则意味着我们不在乎被遮盖的像素的颜色，例如，因为在它们前面有另一个窗口。除非您真的需要能够读回这些像素并获得可预测的结果，否则通过启用裁剪将获得最佳性能。
+
+```c++
+createInfo.oldSwapchain = VK_NULL_HANDLE;
+```
+
+剩下的最后一个字段是oldSwapChain。使用Vulkan时，您的交换链可能在应用程序运行时无效或未优化，例如，因为调整了窗口大小。在这种情况下，实际上需要从头开始重新创建交换链，并且必须在该字段中指定对旧交换链的引用。这是一个复杂的主题，我们将在以后的章节中进一步了解。现在，我们假设我们只会创建一个交换链。
+
+现在添加一个类成员来存储VkSwapchainKHR对象：
+
+```c++
+VkSwapchainKHR swapChain;
+```
+
+现在，创建交换链只需简单调用vkCreateSwapchainKHR：
+
+```c++
+if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create swap chain!");
+}
+```
+
+参数是逻辑设备，交换链创建信息，可选的自定义分配器以及指向用于存储句柄的变量的指针。应该在设备之前使用vkDestroySwapchainKHR对其进行清理：
+
+```c++
+void cleanup() {
+    vkDestroySwapchainKHR(device, swapChain, nullptr);
+    ...
+}
+```
+
+现在运行该应用程序，以确保成功创建交换链！如果此时您在vkCreateSwapchainKHR中遇到访问冲突错误，或在SteamOverlayVulkanLayer.dll层中看到类似“Failed to find 'vkGetInstanceProcAddress' in layer SteamOverlayVulkanLayer.dll”的消息，则请参阅关于Steam Overlay的[FAQ](https://vulkan-tutorial.com/en/FAQ)条目。
+
+尝试在启用启用验证层的情况下删除createInfo.imageExtent = extent；。您将看到验证层之一立即发现错误，并显示一条有用的消息：
+
+![img](https://vulkan-tutorial.com/images/swap_chain_validation_layer.png)
+
+#### Retrieving the swap chain images
+
+#### 获取交换链图像
+
+现在已经创建了交换链，因此剩下的只是获取其中的VkImage的句柄。在后面的章节中，我们将在渲染操作中引用这些内容。添加一个类成员来存储句柄：
+
+```c++
+std::vector<VkImage> swapChainImages;
+```
+
+图像是由交换链的实现创建的，一旦交换链被破坏，它们将被自动清理，因此我们不需要添加任何清理代码。
+
+我在vkCreateSwapchainKHR调用之后添加了代码，在createSwapChain函数末尾获取句柄。这个过程与我们其他时候从Vulkan获取对象数组非常相似。请记住，我们仅在交换链中指定了最小数量的图像，因此实现允许创建具有更多图像的交换链。这就是为什么我们将首先使用vkGetSwapchainImagesKHR查询图像的最终数量，然后调整容器的大小，最后再次调用它以获取句柄。
+
+```c++
+vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
+swapChainImages.resize(imageCount);
+vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+```
+
+最后一件事，将我们为交换链图像选择的格式和尺寸存储在成员变量中。在以后的章节中，我们将需要它们。
+
+```c++
+VkSwapchainKHR swapChain;
+std::vector<VkImage> swapChainImages;
+VkFormat swapChainImageFormat;
+VkExtent2D swapChainExtent;
+
+...
+
+swapChainImageFormat = surfaceFormat.format;
+swapChainExtent = extent;
+```
+
+现在，我们有了一组可以绘制到窗口上并可以呈现给窗口的图像。下一章将开始介绍如何将图像设置为渲染目标，然后开始研究实际的图形管道和绘图命令！
+
+### Image views
+
+### 图像视图
+
+要在渲染管线中使用任何VkImage（包括交换链中的VkImage），我们必须创建一个VkImageView对象。图像视图描述了如何访问图像以及访问图像的哪一部分，例如，是否应将其视为2D深度纹理而没有任何mipmap。
+
+在本章中，我们将编写一个createImageViews函数，该函数为交换链中的每个图像创建一个基本图像视图，以便以后可以将它们用作颜色目标。
+
+首先添加一个类成员来存储图像视图：
+
+```c++
+std::vector<VkImageView> swapChainImageViews;
+```
+
+创建createImageViews函数，并在交换链创建后立即调用它。
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    createSurface();
+    pickPhysicalDevice();
+    createLogicalDevice();
+    createSwapChain();
+    createImageViews();
+}
+
+void createImageViews() {
+
+}
+```
+
+我们需要做的第一件事是调整列表的大小以适合我们将要创建的所有图像视图：
+
+接下来，设置遍历所有交换链映像的循环。
+
+```c++
+for (size_t i = 0; i < swapChainImages.size(); i++) {
+
+}
+```
+
+在VkImageViewCreateInfo结构中指定用于创建图像视图的参数。前几个参数很简单。
+
+```c++
+VkImageViewCreateInfo createInfo = {};
+createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+createInfo.image = swapChainImages[i];
+```
+
+viewType和format字段指定应如何解释图像数据。 viewType参数允许您将图像视为1D纹理，2D纹理，3D纹理和立方体贴图。
+
+```c++
+createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+createInfo.format = swapChainImageFormat;
+```
+
+components字段可让您调整颜色通道。例如，您可以将所有通道映射到红色以获得单色纹理。您还可以将常数0和1映射到通道。在我们的情况下将使用默认映射。
+
+```c++
+createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+```
+
+subresourceRange字段描述图像的用途以及应该访问图像的哪一部分。我们的图像将用作颜色目标，而没有任何mipmap或多层。
+
+```c++
+createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+createInfo.subresourceRange.baseMipLevel = 0;
+createInfo.subresourceRange.levelCount = 1;
+createInfo.subresourceRange.baseArrayLayer = 0;
+createInfo.subresourceRange.layerCount = 1;
+```
+
+如果您正在使用立体3D应用程序，则将创建一个具有多层的交换链。然后，您可以通过访问不同的层为每个图像创建代表左眼和右眼视图的多个图像视图。
+
+现在，创建图像视图只需调用vkCreateImageView：
+
+```c++
+if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create image views!");
+}
+```
+
+与图像不同，图像视图是由我们明确创建的，因此我们需要添加一个类似的循环以在程序结束时销毁它们：
+
+```c++
+void cleanup() {
+    for (auto imageView : swapChainImageViews) {
+        vkDestroyImageView(device, imageView, nullptr);
+    }
+
+    ...
+}
+```
+
+图像视图足以开始使用图像作为纹理，但是还没有准备好用作渲染目标。这需要一个间接的步骤，称为帧缓冲区。但是首先我们必须设置图形管綫。
+
+## Graphics pipeline basics
+
+## 图形管线基础
+
+### Introduction
+
+### 简介
+
+在接下来的几章中，我们将建立一个图形管线，该管线被配置为绘制第一个三角形。图形管线是一系列操作，这些操作将网格的顶点和纹理一直带到渲染目标中的像素。简化的概述如下所示：
+
+![img](https://vulkan-tutorial.com/images/vulkan_simplified_pipeline.svg)
+
+输入装配器从您指定的缓冲区中收集原始顶点数据，并且还可以使用索引缓冲区来重复某些元素，而不必复制顶点数据本身。
+
+顶点着色器针对每个顶点运行，并且通常应用变换以将顶点位置从模型空间转换到屏幕空间。它还将每个顶点的数据向下传递到管线。
+
+镶嵌着色器可让您根据某些规则细分几何形状，以提高网格质量。这通常用于使诸如砖墙和楼梯的表面使得在它们附近时看起来不太平坦。
+
+几何着色器在每个图元（三角形，直线，点）上运行，并且可以丢弃它或输出比输入时更多的图元。这与镶嵌细分着色器相似，但更加灵活。但是，它在当今的应用程序中使用不多，因为除英特尔的集成GPU外，它在大多数图形卡的性能都不太好。
+
+光栅化阶段将图元离散为片段。这些是它们填充在帧缓冲区上的像素元素。如图所示，所有落在屏幕外部的片段都将被丢弃，并且顶点着色器输出的属性将被差值入到这些片段之间。通常，由于进行深度测试，其他原始片段背后的片段也会在此处被丢弃。
+
+片段着色器将为每个到这个阶段尚存的片段调用，并确定将片段写入哪个帧缓冲区以及使用哪个颜色和深度值。它可以使用来自顶点着色器的插值数据来执行此操作，其中可以包括诸如纹理坐标和光照法线之类的内容。
+
+颜色混合阶段应用操作来混合映射到帧缓冲区中同一像素的不同片段。片段可以根据透明度简单地相互覆盖，累加或混合。
+
+绿色的阶段称为固定功能阶段。这些阶段允许您使用参数来调整其操作，但是它们的工作方式是预定义的。
+
+另一方面，橙色的阶段是可编程的，这意味着您可以将自己的代码上传到图形卡以完全应用所需的操作。例如，这使您可以使用片段着色器，以实现从纹理化和光照到光线追踪器的所有功能。这些程序同时在许多GPU内核上运行，以并行处理许多对象，例如顶点和片段。
+
+如果您以前使用过OpenGL和Direct3D等较旧的API，那么您将习惯于通过调用glBlendFunc和OMSetBlendState随意更改任何管线设置。 Vulkan中的图形管线几乎是不可改变的，因此，如果要更改着色器，绑定不同的帧缓冲区或更改混合功能，则必须从头开始重新创建管线。缺点是您必须创建许多管线，这些管线代表要在渲染操作中使用的状态的所有不同组合。但是，由于您将预先知道管线中要执行的所有操作，因此驱动程序可以对其进行更好的优化。
+
+根据您的计划，某些可编程阶段是可选的。例如，如果仅绘制简单几何图形，则可以禁用镶嵌和几何图形阶段。如果仅对深度值感兴趣，则可以禁用片段着色器阶段，这对于生成阴影贴图很有用。
+
+在下一章中，我们将首先创建在屏幕上放置三角形所需的两个可编程阶段：顶点着色器和片段着色器。固定功能配置，例如混合模式，视口，栅格化将在随后的章节中进行设置。在Vulkan中设置图形管线的最后一部分涉及输入和输出帧缓冲区的规范。
+
+创建一个createGraphicsPipeline函数，该函数将在initVulkan中的createImageViews之后立即调用。在以下各章中，我们将专注于这个函数。
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    createSurface();
+    pickPhysicalDevice();
+    createLogicalDevice();
+    createSwapChain();
+    createImageViews();
+    createGraphicsPipeline();
+}
+
+...
+
+void createGraphicsPipeline() {
+
+}
+```
+
+### Shader module
+
+### 着色器模块
+
+与早期的API不同，Vulkan中的着色器代码必须以字节码格式指定，而不是像GLSL和HLSL这样的人类可读语法。这种字节码格式称为[SPIR-V](https://www.khronos.org/spir)(Standard Portable Intermediate Representation)，旨在与Vulkan和OpenCL（均使用Khronos API）一起使用。它是一种可用于编写图形和计算着色器的格式，但在本教程中，我们将重点介绍Vulkan图形管线中使用的着色器。
+
+使用字节码格式的优势在于，由GPU供应商编写的将着色器代码转换为本地代码的编译器的复杂度大大降低。过去已经表明，使用诸如GLSL之类的人类可读语法，一些GPU供应商对标准的解释相当灵活。如果您碰巧使用其中一个供应商提供的GPU编写非平凡的着色器，则可能会冒着其他供应商的驱动程序由于语法错误而拒绝代码的风险，或者更糟糕的是，由于编译器错误，着色器将以不同的方式运行。使用像SPIR-V这样简单的字节码格式有希望避免这些问题。
+
+但是，这并不意味着我们需要手动编写此字节码。 Khronos发布了他们自己的独立于供应商的编译器，该编译器将GLSL编译为SPIR-V。该编译器旨在验证您的着色器代码完全符合标准，并生成一个SPIR-V二进制文件，您可以将其与程序一起提供。您也可以将此编译器作为库包含在内，以在运行时生成SPIR-V，但在本教程中我们不会这样做。尽管我们可以直接通过glslangValidator.exe使用此编译器，但我们将改为使用Google的glslc.exe。 glslc的优点在于，它使用与GCC和Clang等知名编译器相同的参数格式，并包含一些额外的功能（如include）。它们都已包含在Vulkan SDK中，因此您无需下载任何其他内容。
+
+GLSL是一种具有C样式语法的着色语言。用它编写的程序具有为每个对象调用的main函数。 GLSL使用全局变量来处理输入和输出，而不是使用输入参数和返回值作为输出。该语言包括许多有助于图形编程的功能，例如内置矢量和矩阵基本类型。包括叉乘，矩阵向量乘积以及向量0反射等运算函数。向量类型称为vec，带有表示元素数量的数字。例如，将3D位置存储在vec3中。可以通过.x之类的成员访问单个组件，但也可以同时从多个组件创建一个新的向量。例如，表达式vec3（1.0，2.0，3.0）.xy将产生vec2。向量的构造函数也可以采用向量对象和标量值的组合。例如，可以使用vec3（vec2（1.0，2.0），3.0）构造vec3。
+
+如前一章所述，我们需要编写一个顶点着色器和一个片段着色器以在屏幕上显示一个三角形。接下来的两节将介绍其中每一个的GLSL代码，然后，我将向您展示如何生成两个SPIR-V二进制文件并将其加载到程序中。
+
+#### Vertex Shader
+
+#### 顶点着色器
+
+顶点着色器处理每个传入的顶点。它以其属性（例如世界位置，颜色，法线和纹理坐标）作为输入。输出是裁剪坐标系中的最终位置以及需要传递到片段着色器的属性，例如颜色和纹理坐标。然后，这些值将被光栅化器插值到片段上，以生成平滑的渐变。
+
+裁剪坐标是来自顶点着色器的四维矢量，随后通过将整个矢量除以其最后一个分量，将其转换为归一化的设备坐标。这些规范化的设备坐标是齐次坐标，它们将帧缓冲区映射到一個[-1, 1] x [-1, 1]的坐标系，如下所示：
+
+![img](https://vulkan-tutorial.com/images/normalized_device_coordinates.svg)
+
+**如果您以前涉足过计算机图形学，则应该已经熟悉这些内容。如果您以前使用过OpenGL，则会注意到Y坐标的符号现在被翻转了，Z坐标使用与Direct3D相同的范围，从0到1**。
+
+对于第一个三角形，我们将不应用任何变换，我们将三个顶点的位置直接指定为归一化设备坐标即可创建以下形状：
+
+![img](https://vulkan-tutorial.com/images/triangle_coordinates.svg)
+
+我们可以在顶点着色器中将片段坐标最后一位设置为1来直接输出归一化设备坐标。这样，将片段坐标转换为归一化设备坐标的透视触发不会改变任何东西。
+
+通常，这些坐标将存储在顶点缓冲区中，但是在Vulkan中创建顶点缓冲区并将其填充数据并非易事。因此，我决定将其推迟到直到看到屏幕上显示一个三角形为止。同时，我们将做一些非常规的事情：将坐标直接包含在顶点着色器中。代码如下：
+
+```c++
+#version 450
+
+vec2 positions[3] = vec2[](
+    vec2(0.0, -0.5),
+    vec2(0.5, 0.5),
+    vec2(-0.5, 0.5)
+);
+
+void main() {
+    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+}
+```
+
+每个顶点都会调用main函数。内置的gl_VertexIndex变量包含当前顶点的索引。这通常是顶点缓冲区的索引，但在我们的情况下，它将是顶点数据的硬编码数组的索引。可从着色器中的常数数组访问每个顶点的位置，并将其与虚拟z和w分量组合以在裁剪坐标中生成一个位置。内置变量gl_Position用作输出。
+
+#### Fragment shader
+
+#### 片段着色器
+
+由顶点着色器的位置形成的三角形用片段填充屏幕上的一个区域。在这些片段上调用片段着色器以为帧缓冲区（或多个帧缓冲区）生成颜色和深度。一个简单的片段着色器，为整个三角形输出红色，如下所示：
+
+```c++
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+layout(location = 0) out vec4 outColor;
+
+void main() {
+    outColor = vec4(1.0, 0.0, 0.0, 1.0);
+}
+```
+
+就像顶点着色器一样，为每个片段调用main函数。 GLSL中的颜色是4成分向量，其中R，G，B和alpha通道在[0，1]范围内。与顶点着色器中的gl_Position不同，没有内置变量可为当前片段输出颜色。您必须为每个帧缓冲区指定自己的输出变量，其中layout（location = 0）修饰符指定帧缓冲区的索引。将红色写入此outColor变量，该变量链接到索引为0的第一个（也是唯一一个）帧缓冲区。
+
+#### Per-vertex colors
+
+#### 每顶点颜色
+
+将整个三角形设为红色不是很有趣，下面的内容看起来不是会更好吗？
+
+![img](https://vulkan-tutorial.com/images/triangle_coordinates_colors.png)
+
+为此，我们必须对两个着色器进行一些更改。首先，我们需要为三个顶点分别指定不同的颜色。顶点着色器现在应该包括一个颜色数组，就像其位置一样：
+
+```c++
+vec3 colors[3] = vec3[](
+    vec3(1.0, 0.0, 0.0),
+    vec3(0.0, 1.0, 0.0),
+    vec3(0.0, 0.0, 1.0)
+);
+```
+
+现在我们只需要将这些每个顶点的颜色传递到片段着色器，以便它可以将其插值输出到帧缓冲区。将输出的颜色添加到顶点着色器，并在main函数中写入：
+
+```c++
+layout(location = 0) out vec3 fragColor;
+
+void main() {
+    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+    fragColor = colors[gl_VertexIndex];
+}
+```
+
+接下来，我们需要在片段着色器中添加一个匹配的输入：
+
+```c++
+layout(location = 0) in vec3 fragColor;
+
+void main() {
+    outColor = vec4(fragColor, 1.0);
+}
+```
+
+输入变量不一定必须使用相同的名称，它们将使用location指令指定的索引链接在一起。main被修改以输出颜色以及alpha值。如上图所示，将自动为三个顶点之间的片段内插fragColor的值，从而产生平滑的渐变。
+
+#### Compiling the shaders
+
+#### 编译着色器
+
+在项目的根目录中创建一个名为shader的目录，并将顶点着色器存储在该目录中的shader.vert文件中，并将片段着色器存储在该目录中的shader.frag文件中。 GLSL着色器没有官方扩展名，但是这两个通常用于区分它们。
+
+shader.vert的内容应为：
+
+```c++
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+layout(location = 0) out vec3 fragColor;
+
+vec2 positions[3] = vec2[](
+    vec2(0.0, -0.5),
+    vec2(0.5, 0.5),
+    vec2(-0.5, 0.5)
+);
+
+vec3 colors[3] = vec3[](
+    vec3(1.0, 0.0, 0.0),
+    vec3(0.0, 1.0, 0.0),
+    vec3(0.0, 0.0, 1.0)
+);
+
+void main() {
+    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+    fragColor = colors[gl_VertexIndex];
+}
+```
+
+并且shader.frag的内容应为：
+
+```c++
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+layout(location = 0) in vec3 fragColor;
+
+layout(location = 0) out vec4 outColor;
+
+void main() {
+    outColor = vec4(fragColor, 1.0);
+}
+```
+
+现在，我们将使用glslc程序将它们编译为SPIR-V字节码。
+
+**Windows**
+
+创建具有以下内容的compile.bat文件：
+
+```bash
+C:/VulkanSDK/x.x.x.x/Bin32/glslc.exe shader.vert -o vert.spv
+C:/VulkanSDK/x.x.x.x/Bin32/glslc.exe shader.frag -o frag.spv
+pause
+```
+
+用您安装Vulkan SDK的路径替换glslc.exe的路径。双击运行该文件。
+
+**End of platform-specific instructions**
+
+**平台特定说明的结尾**
+
+这两个命令告诉编译器读取GLSL源文件，并使用-o（输出）标志输出SPIR-V字节码文件。
+
+如果您的着色器包含语法错误，则编译器将按照您的预期告诉您行号和问题。例如，尝试省略分号，然后再次运行编译脚本。也可以尝试在不带任何参数的情况下运行编译器，以查看其支持哪些类型的标志。例如，它还可以将字节码输出为人类可读的格式，以便您可以准确地看到着色器正在做什么以及在此阶段已应用的任何优化。
+
+在命令行上编译着色器是最直接的选项之一，也是我们在本教程中将要使用的选项，但是也可以直接从您自己的代码中编译着色器。 Vulkan SDK包含libshaderc，这是一个从程序内部将GLSL代码编译为SPIR-V的库。
+
+#### Load a shader
+
+#### 加载一个着色器
+
+现在我们有了生产SPIR-V着色器的方法，是时候将它们加载到我们的程序中，以便将它们插入到图形管线中了。首先，我们将编写一个简单的辅助函数，以从文件中加载二进制数据。
+
+```c++
+#include <fstream>
+
+...
+
+static std::vector<char> readFile(const std::string& filename) {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("failed to open file!");
+    }
+}
+```
+
+readFile函数将从指定文件中读取所有字节，并将它们返回到由std :: vector管理的字节数组中。我们首先打开带有两个标志的文件：
+
+ate：从文件末尾开始阅读
+binary：将文件读取为二进制文件（避免文本转换）
+
+从文件末尾开始读取的好处是，我们可以使用读取位置来确定文件的大小并分配缓冲区：
+
+```c++
+size_t fileSize = (size_t) file.tellg();
+std::vector<char> buffer(fileSize);
+```
+
+之后，我们可以返回文件的开头并立即读取所有字节：
+
+最后关闭文件并返回字节：
+
+```c++
+file.close();
+
+return buffer;
+```
+
+现在，我们将从createGraphicsPipeline调用此函数以加载两个着色器的字节码：
+
+```c++
+void createGraphicsPipeline() {
+    auto vertShaderCode = readFile("shaders/vert.spv");
+    auto fragShaderCode = readFile("shaders/frag.spv");
+}
+```
+
+通过打印缓冲区的大小并检查它们是否与实际文件大小（以字节为单位）匹配，以确保正确加载了着色器。请注意，由于该代码是二进制代码，因此不需要以null结尾的代码，我们稍后将对其大小进行明确说明。
+
+#### Creating shader modeule
+
+#### 创建着色器模块
+
+在将代码传递到管线之前，我们必须将其包装在VkShaderModule对象中。让我们创建一个辅助函数createShaderModule来做到这一点。
+
+该函数将使用字节码作为参数的缓冲区，并从中创建一个VkShaderModule。
+
+创建着色器模块很简单，我们只需要使用字节码及其长度指定指向缓冲区的指针即可。此信息在VkShaderModuleCreateInfo结构中指定。一个陷阱是字节码的大小以字节为单位指定，但是字节码指针是uint32_t指针而不是char指针。因此，我们将需要使用reinterpret_cast转换指针，如下所示。当执行这样的转换时，还需要确保数据满足uint32_t的对齐要求。对我们来说幸运的是，数据存储在std :: vector中，其中默认分配器已经确保数据满足最坏情况下的对齐要求。
+
+```c++
+VkShaderModuleCreateInfo createInfo = {};
+createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+createInfo.codeSize = code.size();
+```
+
+然后可以通过调用vkCreateShaderModule来创建VkShaderModule：
+
+```c++
+VkShaderModule shaderModule;
+if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create shader module!");
+}
+```
+
+这些参数与以前的对象创建函数中的参数相同：逻辑设备，创建信息结构的指针，指向自定义分配器的可选指针以及处理输出变量。创建着色器模块后，可以立即释放带有代码的缓冲区。不要忘记返回创建的着色器模块：
+
+```c++
+return shaderModule;
+```
+
+着色器模块只是我们先前从文件及其中定义的函数加载的着色器字节码的轻量级包装。在创建图形管线之前，以供GPU执行的SPIR-V字节码到机器代码的编译和链接不会发生。这意味着我们可以在管道创建完成后立即销毁着色器模块，这就是为什么我们要在createGraphicsPipeline函数而不是类成员中将它们设为局部变量：
+
+```c++
+void createGraphicsPipeline() {
+    auto vertShaderCode = readFile("shaders/vert.spv");
+    auto fragShaderCode = readFile("shaders/frag.spv");
+
+    VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+    VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+```
+
+然后，通过两个vkDestroyShaderModule调用，在函数的末尾进行清理。本章中其余代码的AL1将插入这两行调用之前。
+
+```c++
+    ...
+    vkDestroyShaderModule(device, fragShaderModule, nullptr);
+    vkDestroyShaderModule(device, vertShaderModule, nullptr);
+}
+```
+
+#### Shader stage creation
+
+#### 着色器阶段创建
+
+要实际使用着色器，我们需要通过VkPipelineShaderStageCreateInfo结构将它们分配到特定的管线阶段，这是实际管线创建过程的一部分。
+
+我们将再次在createGraphicsPipeline函数中填充顶点着色器的结构。
+
+```c++
+VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
+vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+```
+
+除了必需的sType成员之外，第一步是告诉Vulkan将在哪个管线阶段使用着色器。上一章中描述的每个可编程阶段都有一个枚举值。
+
+接下来的两个成员指定包含代码的着色器模块以及要调用的函数（称为入口点）。这意味着可以将多个片段着色器组合到一个着色器模块中，并使用不同的入口点来区分它们的行为。但是，在这种情况下，我们将使用标准的main。
+
+还有一个（可选）成员pSpecializationInfo，我们这里不使用它，但是值得讨论。它允许您指定着色器常量的值。您可以使用单个着色器模块，可以通过在其中创建的常量指定不同的值来配置其行为。这比在渲染时使用变量配置着色器更高效，因为编译器可以进行优化，例如消除依赖于这些值的if语句。如果没有这样的常量，则可以将成员设置为nullptr，这是我们的结构初始化自动完成的。
+
+修改结构以适合片段着色器很容易：
+
+```c++
+VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
+fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+fragShaderStageInfo.module = fragShaderModule;
+fragShaderStageInfo.pName = "main";
+```
+
+通过定义一个包含这两个结构的数组来完成，我们稍后将在实际的管线创建步骤中来引用它们。
+
+```c++
+VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+```
+
+这就是描述管线的可编程阶段的全部内容。在下一章中，我们将介绍固定功能阶段。
+
+### Fixed functions
+
+### 固定功能
+
+较旧的图形API为图形管线的大多数阶段提供了默认状态。在Vulkan中，您必须明确说明所有内容，从视口大小到颜色混合功能。在本章中，我们将填写所有结构以配置这些固定功能的操作。
+
+#### Vertex input
+
+#### 顶点输入
+
+VkPipelineVertexInputStateCreateInfo结构描述将传递到顶点着色器的顶点数据的格式。它大致以两种方式对此进行了描述：
+
+* 绑定：数据之间的间距以及数据是按顶点还是按实例（请参见实例化）
+* 属性描述：传递给顶点着色器的属性的类型，该属性绑定以从中以及在哪个偏移处加载它们
+
+因为我们要直接在顶点着色器中对顶点数据进行硬编码，所以我们将填充此结构以指定目前没有要加载的顶点数据。我们将在“顶点缓冲区”一章中重新介绍它。
+
+```c++
+VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+vertexInputInfo.vertexBindingDescriptionCount = 0;
+vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
+vertexInputInfo.vertexAttributeDescriptionCount = 0;
+vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+```
+
+pVertexBindingDescriptions和pVertexAttributeDescriptions成员指向一个结构数组，这些结构描述了上述用于加载顶点数据的详细信息，将此结构添加到createGraphicsPipeline函数的shaderStages数组之后。
+
+#### Input assembly
+
+#### 输入装配器
+
+VkPipelineInputAssemblyStateCreateInfo结构描述了两件事：将从顶点绘制哪种几何形状以及是否应启用图元重启。前者在拓扑成员中指定，并且可以具有如下值：
+
+* VK_PRIMITIVE_TOPOLOGY_POINT_LIST：来自顶点的点
+* VK_PRIMITIVE_TOPOLOGY_LINE_LIST：每2个顶点一条线，不重复使用顶点
+* VK_PRIMITIVE_TOPOLOGY_LINE_STRIP：每行的终点用作下一行的起点
+* VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST：每3个顶点一个三角形，不重复使用顶点
+* VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP：每个三角形的第二个和第三个顶点用作下一个三角形的前两个顶点
+  通常，顶点是按索引从顶点缓冲区按顺序加载的，但是使用元素缓冲区，您可以指定要使用的索引。这使您可以执行优化，例如重用顶点。如果将primaryRestartEnable成员设置为VK_TRUE，则可以通过使用特殊索引0xFFFF或0xFFFFFFFF在_STRIP拓扑模式下分解直线和三角形。
+
+我们打算在本教程中绘制三角形，因此我们将使用以下结构数据：
+
+```c++
+VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+inputAssembly.primitiveRestartEnable = VK_FALSE;
+```
+
+#### Viewports and scissors
+
+#### 视口和剪裁器
+
+视口基本上描述了将输出渲染到的帧缓冲区的区域。这几乎总是（0，0）到（宽度，高度），在本教程中也是如此。
+
+```c++
+VkViewport viewport = {};
+viewport.x = 0.0f;
+viewport.y = 0.0f;
+viewport.width = (float) swapChainExtent.width;
+viewport.height = (float) swapChainExtent.height;
+viewport.minDepth = 0.0f;
+viewport.maxDepth = 1.0f;
+```
+
+请记住，交换链及其图像的大小可能与窗口的宽度和高度不同。交换链图像稍后将用作帧缓冲区，因此我们应保持其大小。
+
+minDepth和maxDepth值指定要用于帧缓冲区的深度值的范围。这些值必须在[0.0f，1.0f]范围内，但minDepth可能高于maxDepth。如果您没有做任何特别的事情，那么您应该坚持使用0.0f和1.0f的标准值。
+
+视口定义了从图像到帧缓冲区的转换，而剪裁矩形定义了实际将存储像素的区域。剪裁矩形之外的所有像素将被光栅化器丢弃。它们的作用就像过滤器而不是转换。区别说明如下。请注意，只要它大于视口，左侧的剪裁矩形就是产生该图像的多种可能性之一。
+
+![img](https://vulkan-tutorial.com/images/viewports_scissors.png)
+
+在本教程中，我们只想绘制整个帧缓冲区，因此我们将指定一个完全覆盖它的剪裁矩形：
+
+```c++
+VkRect2D scissor = {};
+scissor.offset = {0, 0};
+scissor.extent = swapChainExtent;
+```
+
+现在，需要使用VkPipelineViewportStateCreateInfo结构将此视口和剪裁矩形组合为视口状态。在某些图形卡上可以使用多个视口和剪裁矩形，因此其成员引用了它们的数组。使用多个视口需要启用GPU功能（请参阅逻辑设备创建）。
+
+```c++
+VkPipelineViewportStateCreateInfo viewportState = {};
+viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+viewportState.viewportCount = 1;
+viewportState.pViewports = &viewport;
+viewportState.scissorCount = 1;
+viewportState.pScissors = &scissor;
+```
+
+
+
+#### Rasterizer
+
+#### 光栅化器
+
+#### Multisampling
+
+#### 多重采样
+
+#### Depth and stencil testing
+
+#### 深度和模板测试
+
+#### Color Blending
+
+#### 颜色混合
+
+#### Dynamic state
+
+#### 动态状态
+
+#### Pipeline layout
+
+#### 管线布局
+
+#### Conclusion
+
+#### 总结
 
