@@ -2717,3 +2717,88 @@ void cleanup() {
 ```
 
 工作可真不少，但是在下一章中，将所有这些结合在一起，最终创建图形管线对象！
+
+### Conclusion
+
+### 总结
+
+现在，我们可以结合前几章中的所有结构和对象来创建图形管线！快速回顾一下，这是我们现在拥有的对象的类型：
+
+* 着色器阶段：定义图形管线可编程阶段功能的着色器模块
+* 固定功能状态：定义管线固定功能阶段的所有结构，例如输入组件，光栅化器，视口和颜色混合
+* 管线布局：着色器引用的统一值和推送值，可以在绘制时进行更新
+* 渲染阶段：管线阶段引用的附件及其用法
+
+所有这些结合在一起完全定义了图形管线的功能，因此我们现在可以在createGraphicsPipeline函数末尾开始填充VkGraphicsPipelineCreateInfo结构。但是在调用vkDestroyShaderModule之前，因为在创建过程中仍将使用它们。
+
+```c++
+VkGraphicsPipelineCreateInfo pipelineInfo = {};
+pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+pipelineInfo.stageCount = 2;
+pipelineInfo.pStages = shaderStages;
+```
+
+我们首先引用VkPipelineShaderStageCreateInfo结构的数组。
+
+```c++
+pipelineInfo.pVertexInputState = &vertexInputInfo;
+pipelineInfo.pInputAssemblyState = &inputAssembly;
+pipelineInfo.pViewportState = &viewportState;
+pipelineInfo.pRasterizationState = &rasterizer;
+pipelineInfo.pMultisampleState = &multisampling;
+pipelineInfo.pDepthStencilState = nullptr; // Optional
+pipelineInfo.pColorBlendState = &colorBlending;
+pipelineInfo.pDynamicState = nullptr; // Optional
+```
+
+然后，我们引用描述固定功能阶段的所有结构。
+
+```c++
+pipelineInfo.layout = pipelineLayout;
+```
+
+之后是管线布局，它是Vulkan句柄而不是结构指针。
+
+```c++
+pipelineInfo.renderPass = renderPass;
+pipelineInfo.subpass = 0;
+```
+
+最后，我们引用了将使用此图形管线的渲染过程和子过程的索引。也可以在此管线中使用其他渲染过程，而不是此特定实例，但是它们必须与renderPass兼容。兼容性要求在此处进行了描述，但是在本教程中我们不会使用该功能。
+
+```c++
+pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+pipelineInfo.basePipelineIndex = -1; // Optional
+```
+
+实际上，还有两个参数：basePipelineHandle和basePipelineIndex。 Vulkan允许您通过从现有管线派生来创建新的图形管线。管线派生的想法是，当管线具有与现有管线共有的许多功能时，建立管线的成本较低，并且可以更快地完成同一父管线之间的切换。您可以使用basePipelineHandle指定现有管线的句柄，也可以使用basePipelineIndex引用即将由索引创建的另一个管线。现在只有一个管线，因此我们只需要指定一个空句柄和一个无效索引即可。仅当在VkGraphicsPipelineCreateInfo的标志字段中还指定了VK_PIPELINE_CREATE_DERIVATIVE_BIT标志时，才使用这些值。
+
+现在，通过创建一个类成员来保存VkPipeline对象，为最后一步做准备：
+
+```c++
+VkPipeline graphicsPipeline;
+```
+
+最后创建图形管线：
+
+```c++
+if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create graphics pipeline!");
+}
+```
+
+实际上，vkCreateGraphicsPipelines函数具有比Vulkan中通常的对象创建函数更多的参数。它旨在采用多个VkGraphicsPipelineCreateInfo对象，并在单个调用中创建多个VkPipeline对象。
+
+我们已为其传递VK_NULL_HANDLE参数的第二个参数引用了一个可选的VkPipelineCache对象。管线缓存可用于存储和重用与vkCreateGraphicsPipelines的多次调用有关的，与管线创建有关的数据，甚至在缓存存储到文件的情况下，也可跨程序执行。这样就可以在以后大大加快管线的创建速度。我们将在管线缓存一章中对此进行介绍。
+
+图形管线是所有常见绘图操作所必需的，因此也应仅在程序结束时销毁它：
+
+```c++
+void cleanup() {
+    vkDestroyPipeline(device, graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    ...
+}
+```
+
+现在运行您的程序，以确认所有这些辛勤工作已成功完成了管线的创建！我们已经差不多可以看到屏幕上蹦出一些东西。在接下来的几章中，我们将从交换链图像中设置实际的帧缓冲区，并准备绘图命令。
