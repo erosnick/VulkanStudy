@@ -2552,3 +2552,168 @@ void cleanup() {
 所有固定功能状态就这么多了！从头开始设置所有这些是很多工作，但是优点是我们现在几乎完全了解了图形管显中正在发生的一切！因为某些组件的默认状态不是您期望的，所以这减少了发生意外行为的机会。
 
 但是，在最终创建图形管道之前，还有一个对象需要创建，那就是渲染过程。
+
+### Render passes
+
+#### 渲染过程
+
+#### Setup
+
+#### 设置
+
+在完成创建管线之前，我们需要告诉Vulkan有关在渲染时将使用的帧缓冲区附件。我们需要指定将有多少个颜色和深度缓冲区，每个缓冲区要使用多少个样本，以及在整个渲染操作中应如何处理其内容。所有这些信息都包装在一个渲染过程对象中，我们将为其创建一个新的createRenderPass函数。在createGraphicsPipeline之前从initVulkan调用此函数。
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    createSurface();
+    pickPhysicalDevice();
+    createLogicalDevice();
+    createSwapChain();
+    createImageViews();
+    createRenderPass();
+    createGraphicsPipeline();
+}
+
+...
+
+void createRenderPass() {
+
+}
+```
+
+#### Attachment description
+
+#### 附件描述
+
+在我们的案例中，我们将只有一个颜色缓冲区附件，该附件由交换链中的图像之一表示。
+
+```c++
+void createRenderPass() {
+    VkAttachmentDescription colorAttachment = {};
+    colorAttachment.format = swapChainImageFormat;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+}
+```
+
+颜色附件的格式应与交换链图像的格式匹配，并且我们还没有对多重采样进行任何操作，因此我们将使用1个样本。
+
+```c++
+colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+```
+
+loadOp和storeOp确定在渲染之前和渲染之后如何处理附件中的数据。对于loadOp，我们有以下选择：
+
+* VK_ATTACHMENT_LOAD_OP_LOAD：保留附件的现有内容
+* VK_ATTACHMENT_LOAD_OP_CLEAR：在开始时将值清除为常量
+* VK_ATTACHMENT_LOAD_OP_DONT_CARE：现有内容未定义；我们不在乎他们
+
+在我们的例子中，我们将使用clear操作在绘制新帧之前将帧缓冲区清除为黑色。 storeOp只有两种可能性：
+
+* VK_ATTACHMENT_STORE_OP_STORE：渲染的内容将存储在内存中，以后可以读取
+* VK_ATTACHMENT_STORE_OP_DONT_CARE：渲染操作后，帧缓冲区的内容将不确定
+
+我们有希望在屏幕上看到渲染的三角形，因此我们在这里进行存储操作。
+
+```c++
+colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+```
+
+loadOp和storeOp适用于颜色和深度数据，stencilLoadOp / stencilStoreOp适用于模板数据。我们的应用程序不会对模板缓冲区做任何事情，因此加载和存储的结果无关紧要。
+
+```c++
+colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+```
+
+Vulkan中的纹理和帧缓冲区由具有特定像素格式的VkImage对象表示，但是内存中像素的布局可以根据您要对图像进行的处理而更改。
+
+一些最常见的布局是：
+
+* VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL：用作颜色附件的图像
+* VK_IMAGE_LAYOUT_PRESENT_SRC_KHR：要在交换链中显示的图像
+* VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL：用作存储器复制操作目标的图像
+
+我们将在纹理一章中更深入地讨论该主题，但是现在要知道的重要一点是，需要将图像转换为适合于下一步将要涉及的操作的特定布局。
+
+initialLayout指定在渲染过程开始之前图像将具有的布局。 finalLayout指定在渲染过程完成时自动过渡到的布局。对InitialLayout使用VK_IMAGE_LAYOUT_UNDEFINED意味着我们不在乎图像以前的布局。此特殊值要注意的是，不能保证保留图像的内容，但这无关紧要，因为我们无论如何要清除它。我们希望图像可以在渲染后准备好使用交换链呈现，这就是为什么我们使用VK_IMAGE_LAYOUT_PRESENT_SRC_KHR作为finalLayout的原因。
+
+#### Subpasses and attachment references
+
+#### 子过程和附件引用
+
+单个渲染过程可以包含多个子过程。子过程是依赖于先前过程中的帧缓冲区内容的后续渲染操作，例如，一系列后处理效果依次应用。如果将这些渲染操作分组到一个渲染过程中，则Vulkan能够对这些操作进行重新排序并节省内存带宽，以实现更好的性能。但是，对于第一个三角形，我们将使用单个子过程。
+
+每个子过程都引用我们使用上一节中的结构描述的一个或多个附件。这些引用本身就是VkAttachmentReference结构，如下所示：
+
+```c++
+VkAttachmentReference colorAttachmentRef = {};
+colorAttachmentRef.attachment = 0;
+colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+```
+
+附件参数通过附件描述数组中的索引指定要引用的附件。我们的数组由单个VkAttachmentDescription组成，因此其索引为0。布局指定了我们希望附件在使用此引用的子通道中具有哪种布局。启动子过程时，Vulkan将自动将附件转换为该布局。顾名思义，我们打算使用附件充当颜色缓冲区，并且VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL布局将为我们提供最佳性能。
+
+使用VkSubpassDescription结构描述子过程：
+
+```c++
+VkSubpassDescription subpass = {};C
+subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+```
+
+Vulkan将来可能还会支持计算子过程，因此我们必须明确地说这是图形子过程。接下来，我们指定对颜色附件的引用：
+
+```c++
+subpass.colorAttachmentCount = 1;
+subpass.pColorAttachments = &colorAttachmentRef;
+```
+
+该片段数组中附件的索引是直接通过fragment（shader）着色器使用layout（location = 0）out vec4 outColor指令引用的！
+
+子过程可以引用以下其他类型的附件：
+
+* pInputAttachments：从着色器读取的附件
+* pResolveAttachments：用于多采样颜色附件的附件
+* pDepthStencilAttachment：深度和模板数据的附件
+* pPreserveAttachments：此子通道未使用但必须为其保留数据的附件
+
+#### Render pass
+
+#### 渲染过程
+
+现在已经描述了附件和引用它的基本子过程，我们可以创建渲染过程本身。创建一个新的类成员变量，以将VkRenderPass对象保存在pipelineLayout变量的正上方：
+
+```c++
+VkRenderPass renderPass;C
+VkPipelineLayout pipelineLayout;
+```
+
+然后可以通过在VkRenderPassCreateInfo结构中填充一系列附件和子过程来创建渲染通道对象。 VkAttachmentReference对象使用此数组的索引引用附件。
+
+```c++
+VkRenderPassCreateInfo renderPassInfo = {};
+renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+renderPassInfo.attachmentCount = 1;
+renderPassInfo.pAttachments = &colorAttachment;
+renderPassInfo.subpassCount = 1;
+renderPassInfo.pSubpasses = &subpass;
+
+if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create render pass!");
+}
+```
+
+就像管线布局一样，渲染过程将在整个程序中被引用，因此仅应在最后将其清除：
+
+```c++
+void cleanup() {
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    vkDestroyRenderPass(device, renderPass, nullptr);
+    ...
+}
+```
+
+工作可真不少，但是在下一章中，将所有这些结合在一起，最终创建图形管线对象！
