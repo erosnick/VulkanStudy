@@ -34,7 +34,7 @@ const std::vector<const char*> validationLayers = {
 	
 	"VK_LAYER_KHRONOS_validation",
 	"VK_LAYER_LUNARG_standard_validation",
-	"VK_LAYER_RENDERDOC_Capture"
+	//"VK_LAYER_RENDERDOC_Capture"
 };
 
 const std::vector<const char*> deviceExtensions = {
@@ -78,8 +78,13 @@ public:
 	void createSwapChain();
 	void createImageViews();
 	VkShaderModule createShaderModule(const std::vector<char>& code);
+	void createRenderPass();
 	void createGraphicsPipeline();
-	void createBuffer();
+	void createFramebuffers();
+	void createCommandPool();
+	void createCommandBuffers();
+	void createSyncObjects();
+	void drawFrame();
 	void mainLoop();
 	void cleanup();
 	~Application();
@@ -108,4 +113,17 @@ protected:
 
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
+	VkRenderPass renderPass;
+	VkPipelineLayout pipelineLayout;
+	VkPipeline graphicsPipeline;
+	std::vector<VkFramebuffer> swapChainFramebuffers;
+	VkCommandPool commandPool;
+	std::vector<VkCommandBuffer> commandBuffers;
+	VkSemaphore imageAvailableSemaphore;
+	VkSemaphore renderFinishedSemaphore;
+	// Each frame should have its own set of semaphores
+	std::vector<VkSemaphore> imageAvailableSemaphores;
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::vector<VkFence> inFlightFences;
+	size_t currentFrame = 0;
 };
