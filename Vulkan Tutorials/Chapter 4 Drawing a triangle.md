@@ -1,5 +1,7 @@
 [TOC]
 
+[TOC]
+
 # Drawing a triangle
 
 # 绘制一个三角形
@@ -2551,17 +2553,17 @@ void cleanup() {
 
 所有固定功能状态就这么多了！从头开始设置所有这些是很多工作，但是优点是我们现在几乎完全了解了图形管显中正在发生的一切！因为某些组件的默认状态不是您期望的，所以这减少了发生意外行为的机会。
 
-但是，在最终创建图形管道之前，还有一个对象需要创建，那就是渲染过程。
+但是，在最终创建图形管道之前，还有一个对象需要创建，那就是渲染通道。
 
 ### Render passes
 
-#### 渲染过程
+#### 渲染通道
 
 #### Setup
 
 #### 设置
 
-在完成创建管线之前，我们需要告诉Vulkan有关在渲染时将使用的帧缓冲区附件。我们需要指定将有多少个颜色和深度缓冲区，每个缓冲区要使用多少个样本，以及在整个渲染操作中应如何处理其内容。所有这些信息都包装在一个渲染过程对象中，我们将为其创建一个新的createRenderPass函数。在createGraphicsPipeline之前从initVulkan调用此函数。
+在完成创建管线之前，我们需要告诉Vulkan有关在渲染时将使用的帧缓冲区附件。我们需要指定将有多少个颜色和深度缓冲区，每个缓冲区要使用多少个样本，以及在整个渲染操作中应如何处理其内容。所有这些信息都包装在一个渲染通道对象中，我们将为其创建一个新的createRenderPass函数。在createGraphicsPipeline之前从initVulkan调用此函数。
 
 ```c++
 void initVulkan() {
@@ -2639,15 +2641,15 @@ Vulkan中的纹理和帧缓冲区由具有特定像素格式的VkImage对象表�
 
 我们将在纹理一章中更深入地讨论该主题，但是现在要知道的重要一点是，需要将图像转换为适合于下一步将要涉及的操作的特定布局。
 
-initialLayout指定在渲染过程开始之前图像将具有的布局。 finalLayout指定在渲染过程完成时自动过渡到的布局。对InitialLayout使用VK_IMAGE_LAYOUT_UNDEFINED意味着我们不在乎图像以前的布局。此特殊值要注意的是，不能保证保留图像的内容，但这无关紧要，因为我们无论如何要清除它。我们希望图像可以在渲染后准备好使用交换链呈现，这就是为什么我们使用VK_IMAGE_LAYOUT_PRESENT_SRC_KHR作为finalLayout的原因。
+initialLayout指定在渲染通道开始之前图像将具有的布局。 finalLayout指定在渲染通道完成时自动过渡到的布局。对InitialLayout使用VK_IMAGE_LAYOUT_UNDEFINED意味着我们不在乎图像以前的布局。此特殊值要注意的是，不能保证保留图像的内容，但这无关紧要，因为我们无论如何要清除它。我们希望图像可以在渲染后准备好使用交换链呈现，这就是为什么我们使用VK_IMAGE_LAYOUT_PRESENT_SRC_KHR作为finalLayout的原因。
 
 #### Subpasses and attachment references
 
-#### 子过程和附件引用
+#### 子通道和附件引用
 
-单个渲染过程可以包含多个子过程。子过程是依赖于先前过程中的帧缓冲区内容的后续渲染操作，例如，一系列后处理效果依次应用。如果将这些渲染操作分组到一个渲染过程中，则Vulkan能够对这些操作进行重新排序并节省内存带宽，以实现更好的性能。但是，对于第一个三角形，我们将使用单个子过程。
+单个渲染通道可以包含多个子通道。子通道是依赖于先前通道中的帧缓冲区内容的后续渲染操作，例如，一系列后处理效果依次应用。如果将这些渲染操作分组到一个渲染通道中，则Vulkan能够对这些操作进行重新排序并节省内存带宽，以实现更好的性能。但是，对于第一个三角形，我们将使用单个子通道。
 
-每个子过程都引用我们使用上一节中的结构描述的一个或多个附件。这些引用本身就是VkAttachmentReference结构，如下所示：
+每个子通道都引用我们使用上一节中的结构描述的一个或多个附件。这些引用本身就是VkAttachmentReference结构，如下所示：
 
 ```c++
 VkAttachmentReference colorAttachmentRef = {};
@@ -2655,16 +2657,16 @@ colorAttachmentRef.attachment = 0;
 colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 ```
 
-附件参数通过附件描述数组中的索引指定要引用的附件。我们的数组由单个VkAttachmentDescription组成，因此其索引为0。布局指定了我们希望附件在使用此引用的子通道中具有哪种布局。启动子过程时，Vulkan将自动将附件转换为该布局。顾名思义，我们打算使用附件充当颜色缓冲区，并且VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL布局将为我们提供最佳性能。
+附件参数通过附件描述数组中的索引指定要引用的附件。我们的数组由单个VkAttachmentDescription组成，因此其索引为0。布局指定了我们希望附件在使用此引用的子通道中具有哪种布局。启动子通道时，Vulkan将自动将附件转换为该布局。顾名思义，我们打算使用附件充当颜色缓冲区，并且VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL布局将为我们提供最佳性能。
 
-使用VkSubpassDescription结构描述子过程：
+使用VkSubpassDescription结构描述子通道：
 
 ```c++
 VkSubpassDescription subpass = {};C
 subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 ```
 
-Vulkan将来可能还会支持计算子过程，因此我们必须明确地说这是图形子过程。接下来，我们指定对颜色附件的引用：
+Vulkan将来可能还会支持计算子通道，因此我们必须明确地说这是图形子通道。接下来，我们指定对颜色附件的引用：
 
 ```c++
 subpass.colorAttachmentCount = 1;
@@ -2673,7 +2675,7 @@ subpass.pColorAttachments = &colorAttachmentRef;
 
 该片段数组中附件的索引是直接通过fragment（shader）着色器使用layout（location = 0）out vec4 outColor指令引用的！
 
-子过程可以引用以下其他类型的附件：
+子通道可以引用以下其他类型的附件：
 
 * pInputAttachments：从着色器读取的附件
 * pResolveAttachments：用于多采样颜色附件的附件
@@ -2682,16 +2684,16 @@ subpass.pColorAttachments = &colorAttachmentRef;
 
 #### Render pass
 
-#### 渲染过程
+#### 渲染通道
 
-现在已经描述了附件和引用它的基本子过程，我们可以创建渲染过程本身。创建一个新的类成员变量，以将VkRenderPass对象保存在pipelineLayout变量的正上方：
+现在已经描述了附件和引用它的基本子通道，我们可以创建渲染通道本身。创建一个新的类成员变量，以将VkRenderPass对象保存在pipelineLayout变量的正上方：
 
 ```c++
 VkRenderPass renderPass;C
 VkPipelineLayout pipelineLayout;
 ```
 
-然后可以通过在VkRenderPassCreateInfo结构中填充一系列附件和子过程来创建渲染通道对象。 VkAttachmentReference对象使用此数组的索引引用附件。
+然后可以通过在VkRenderPassCreateInfo结构中填充一系列附件和子通道来创建渲染通道对象。 VkAttachmentReference对象使用此数组的索引引用附件。
 
 ```c++
 VkRenderPassCreateInfo renderPassInfo = {};
@@ -2706,7 +2708,7 @@ if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCC
 }
 ```
 
-就像管线布局一样，渲染过程将在整个程序中被引用，因此仅应在最后将其清除：
+就像管线布局一样，渲染通道将在整个程序中被引用，因此仅应在最后将其清除：
 
 ```c++
 void cleanup() {
@@ -2764,7 +2766,7 @@ pipelineInfo.renderPass = renderPass;
 pipelineInfo.subpass = 0;
 ```
 
-最后，我们引用了将使用此图形管线的渲染过程和子过程的索引。也可以在此管线中使用其他渲染过程，而不是此特定实例，但是它们必须与renderPass兼容。兼容性要求在此处进行了描述，但是在本教程中我们不会使用该功能。
+最后，我们引用了将使用此图形管线的渲染通道和子通道的索引。也可以在此管线中使用其他渲染通道，而不是此特定实例，但是它们必须与renderPass兼容。兼容性要求在此处进行了描述，但是在本教程中我们不会使用该功能。
 
 ```c++
 pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
@@ -2811,9 +2813,9 @@ void cleanup() {
 
 ###  帧缓冲
 
-在过去的几章中，我们讨论了很多帧缓冲区，并且设置了渲染过程以期望具有与交换链图像相同格式的单个帧缓冲区，但实际上尚未创建任何帧缓冲区。
+在过去的几章中，我们讨论了很多帧缓冲区，并且设置了渲染通道以期望具有与交换链图像相同格式的单个帧缓冲区，但实际上尚未创建任何帧缓冲区。
 
-通过在渲染过程创建期间指定的附件，可以通过将它们包装到VkFramebuffer对象中来绑定。帧缓冲区对象引用了代表附件的所有VkImageView对象。在我们的例子中，只有一个：颜色附件。但是，我们必须用于附件的图像取决于交换链为呈现请求时返回的图像。这意味着我们必须为交换链中的所有图像创建一个帧缓冲区，并在绘制时使用与检索到的图像相对应的帧缓冲区。
+通过在渲染通道创建期间指定的附件，可以通过将它们包装到VkFramebuffer对象中来绑定。帧缓冲区对象引用了代表附件的所有VkImageView对象。在我们的例子中，只有一个：颜色附件。但是，我们必须用于附件的图像取决于交换链为呈现请求时返回的图像。这意味着我们必须为交换链中的所有图像创建一个帧缓冲区，并在绘制时使用与检索到的图像相对应的帧缓冲区。
 
 为此，创建另一个std :: vector类成员以保存帧缓冲区：
 
@@ -2877,7 +2879,7 @@ for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 
 如您所见，创建帧缓冲区非常简单。我们首先需要指定帧缓冲区需要与哪个renderPass兼容。您只能将帧缓冲区与兼容的渲染通道一起使用，这大致意味着它们使用相同数量和类型的附件。
 
-attachmentCount和pAttachments参数指定VkImageView对象，该对象应绑定到渲染过程pAttachment数组中的相应附件描述。
+attachmentCount和pAttachments参数指定VkImageView对象，该对象应绑定到渲染通道pAttachment数组中的相应附件描述。
 
 width和height参数是不言自明的，layers表示图像阵列中的层数。我们的交换链图像是单张图像，因此层数为1。
 
@@ -3049,7 +3051,7 @@ for (size_t i = 0; i < commandBuffers.size(); i++) {
 flags参数指定我们将如何使用命令缓冲区。提供以下值：
 
 * VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT：执行一次命令缓冲区后，将立即重新记录该命令缓冲区。
-* VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT：这是辅助命令缓冲区，将完全在单个渲染过程中。
+* VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT：这是辅助命令缓冲区，将完全在单个渲染通道中。
 * VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT：可以重新提交命令缓冲区，同时也要等待执行。
   这些标志目前都不适用于我们。
 
@@ -3059,9 +3061,9 @@ pInheritanceInfo参数仅与辅助命令缓冲区有关。它指定要从调用�
 
 #### Startinga renderpass
 
-#### 开始渲染过程
+#### 开始渲染通道
 
-绘制通过以vkCmdBeginRenderPass开始渲染过程开始。使用VkRenderPassBeginInfo结构中的一些参数配置渲染过程。
+绘制通过以vkCmdBeginRenderPass开始渲染通道开始。使用VkRenderPassBeginInfo结构中的一些参数配置渲染通道。
 
 ```c++
 VkRenderPassBeginInfo renderPassInfo = {};
@@ -3070,7 +3072,7 @@ renderPassInfo.renderPass = renderPass;
 renderPassInfo.framebuffer = swapChainFramebuffers[i];
 ```
 
-第一个参数是渲染过程本身和要绑定的附件。我们为每个交换链图像创建了一个帧缓冲区，将其指定为颜色附件。
+第一个参数是渲染通道本身和要绑定的附件。我们为每个交换链图像创建了一个帧缓冲区，将其指定为颜色附件。
 
 ```c++
 renderPassInfo.renderArea.offset = {0, 0};
@@ -3091,9 +3093,9 @@ renderPassInfo.pClearValues = &clearColor;
 vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 ```
 
-现在可以开始渲染过程。记录命令的所有功能都可以通过其vkCmd前缀识别。它们全都返回void，因此在完成记录之前不会进行任何错误处理。
+现在可以开始渲染通道。记录命令的所有功能都可以通过其vkCmd前缀识别。它们全都返回void，因此在完成记录之前不会进行任何错误处理。
 
-每个命令的第一个参数始终是记录命令的命令缓冲区。第二个参数指定我们刚刚提供的渲染过程的详细信息。最终参数控制如何在渲染过程中提供绘制命令。它可以具有两个值之一：
+每个命令的第一个参数始终是记录命令的命令缓冲区。第二个参数指定我们刚刚提供的渲染通道的详细信息。最终参数控制如何在渲染通道中提供绘制命令。它可以具有两个值之一：
 
 * VK_SUBPASS_CONTENTS_INLINE：渲染传递命令将嵌入在主命令缓冲区本身中，并且不会执行任何辅助命令缓冲区。
 * VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS：渲染传递命令将从辅助命令缓冲区执行。
@@ -3127,7 +3129,7 @@ vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 
 #### 结束
 
-现在可以结束渲染过程：
+现在可以结束渲染通道：
 
 ```c++
 vkCmdEndRenderPass(commandBuffers[i]);
@@ -3151,35 +3153,528 @@ if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
 
 #### 设置
 
+这章将把所有内容融合在一起。我们将编写drawFrame函数，该函数将从主循环中调用以将三角形显示在屏幕上。创建函数并从mainLoop调用它：
+
+```
+void mainLoop() {
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+        drawFrame();
+    }
+}
+
+...
+
+void drawFrame() {
+
+}
+```
+
 #### Synchronization
 
 #### 同步
+
+drawFrame函数将执行以下操作：
+
+* 从交换链获取图像
+* 以该图像作为附件在帧缓冲区中执行命令缓冲区
+* 将图像返回交换链进行演示
+
+这些事件中的每一个都使用单个函数调用激活，但是它们是异步执行的。函数调用将在操作实际完成之前返回，并且执行顺序也未定义。不幸的是，因为每个操作都取决于上一个操作。
+
+有两种同步交换链事件的方式：栅栏和信号量。它们都是对象，可以通过发出一个操作信号来进行协调操作，而另一个操作则等待栅栏或信号灯从无信号状态变为发信号状态。
+
+区别在于可以使用vkWaitForFences之类的调用从程序中访问栅栏状态，而信号量则不能。栅栏主要用于将应用程序本身与呈现操作同步，而信号量用于在命令队列之内或之间同步操作。我们要同步绘制命令和表示的队列操作，这使信号量最合适。
 
 #### Semaphores
 
 #### 信号量
 
+我们将需要一个信号量来表示已获取图像并可以进行渲染，而另一个信号量则表示已完成渲染并可以进行呈现。创建两个类成员来存储这些信号量对象：
+
+```c++
+VkSemaphore imageAvailableSemaphore;
+VkSemaphore renderFinishedSemaphore;
+```
+
+要创建信号量，我们将在本部分教程中添加最后一个create函数：createSemaphores：
+
+```c++
+void initVulkan() {
+    createInstance();
+    setupDebugMessenger();
+    createSurface();
+    pickPhysicalDevice();
+    createLogicalDevice();
+    createSwapChain();
+    createImageViews();
+    createRenderPass();
+    createGraphicsPipeline();
+    createFramebuffers();
+    createCommandPool();
+    createCommandBuffers();
+    createSemaphores();
+}
+
+...
+
+void createSemaphores() {
+
+```
+
+创建信号量需要填写VkSemaphoreCreateInfo，但是在当前版本的API中，除了sType之外，它实际上没有任何必填字段：
+
+```c++
+void createSemaphores() {
+    VkSemaphoreCreateInfo semaphoreInfo = {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+}
+```
+
+Vulkan API的将来版本或扩展可能会像其他结构一样为标志和pNext参数添加功能。创建信号量遵循vkCreateSemaphore的熟悉模式：
+
+```c++
+if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
+    vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS) {
+
+    throw std::runtime_error("failed to create semaphores!");
+}
+```
+
+当所有命令均已完成并且不再需要同步时，应在程序结束时清除信号灯：
+
+```c++
+void cleanup() {
+    vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+    vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+```
+
 #### Acquiring an image from the swap chain
 
 #### 从交换链获取一张图像
+
+如前所述，我们在drawFrame函数中要做的第一件事是从交换链获取图像。回想一下交换链是扩展功能，因此我们必须使用具有vk * KHR命名约定的函数：
+
+```c++
+void drawFrame() {
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+}
+```
+
+vkAcquireNextImageKHR的前两个参数是我们希望从中获取图像的逻辑设备和交换链。第三个参数指定图像可用的超时时间（以纳秒为单位）。使用64位无符号整数的最大值将禁用超时。
+
+接下来的两个参数指定在呈现引擎完成使用图像时要发信号通知的同步对象。这是我们可以开始绘制的时间点。可以指定信号量，栅栏或两者。为此，我们将为此使用imageAvailableSemaphore。
+
+最后一个参数指定一个变量，以输出已可用的交换链图像的索引。索引引用我们swapChainImages数组中的VkImage。我们将使用该索引来选择正确的命令缓冲区。
 
 #### Submitting the command buffer
 
 #### 提交命令缓冲
 
+队列提交和同步是通过VkSubmitInfo结构中的参数配置的。
+
+```c++
+VkSubmitInfo submitInfo = {};
+submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+submitInfo.waitSemaphoreCount = 1;
+submitInfo.pWaitSemaphores = waitSemaphores;
+submitInfo.pWaitDstStageMask = waitStages;
+```
+
+前三个参数指定在执行开始之前要等待的信号量以及要在管线的哪个阶段中等待。我们希望等到将颜色写入图像后再可用，因此我们要指定写入颜色附件的图形管线的阶段。这意味着从理论上讲，该实现在图像尚不可用时已经可以开始执行我们的顶点着色器。 waitStages数组中的每个条目对应于在pWaitSemaphores中具有相同索引的信号量。
+
+```c++
+submitInfo.commandBufferCount = 1;
+submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+```
+
+接下来的两个参数指定要实际提交执行的命令缓冲区。如前所述，我们应该提交命令缓冲区，该缓冲区绑定刚刚作为颜色附件获取的交换链图像。
+
+```c++
+VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+submitInfo.signalSemaphoreCount = 1;
+submitInfo.pSignalSemaphores = signalSemaphores;
+```
+
+signalSemaphoreCount和pSignalSemaphores参数指定在命令缓冲区完成执行后要发信号通知的信号量。在我们的例子中，我们为此使用renderFinishedSemaphore。
+
+```c++
+if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+    throw std::runtime_error("failed to submit draw command buffer!");
+}
+```
+
+现在，我们可以使用vkQueueSubmit将命令缓冲区提交到图形队列。当工作量大得多时，该函数将VkSubmitInfo结构的数组作为参数获得更高的效率。最后一个参数引用一个可选的栅栏，当命令缓冲执行结束时会发出信号。我们正在使用信号量进行同步，因此我们只传递一个VK_NULL_HANDLE。
+
 #### Subpass dependencies
 
-#### 子过程依赖
+#### 子通道依赖
+
+请记住，渲染通道中的子通道会自动处理图像布局过渡。这些转换由子通道依赖关系控制，子依赖关系指定子通道之间的内存和执行依赖关系。现在，我们只有一个子通道，但是该子通道之前和之后的操作也算作隐式“子通道”。
+
+有两个内置的依赖项，它们在渲染通道的开始和渲染通道的结束时负责过渡，但是前者不会在正确的时间发生。它假定过渡发生在管线的开始，但是我们那时还没有获取图像！有两种方法可以解决此问题。我们可以将imageAvailableSemaphore的waitStages更改为VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT以确保渲染通道直到图像可用之前才开始，或者我们可以使渲染通道等待VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT阶段。我决定在这里选择第二个选项，因为这是查看子通道依赖关系及其工作方式的一个很好的借口。
+
+子通道依赖关系在VkSubpassDependency结构中指定。转到createRenderPass函数并添加一个：
+
+```c++
+VkSubpassDependency dependency = {};
+dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+dependency.dstSubpass = 0;
+
+```
+
+前两个字段指定相关性和依赖子通道的索引。特殊值VK_SUBPASS_EXTERNAL指的是渲染通道之前或之后的隐式子通道，具体取决于在srcSubpass还是dstSubpass中指定。索引0表示我们的子通道，它是第一个也是唯一的一个。 dstSubpass必须始终高于srcSubpass，以防止依赖性图中的循环（除非其中一个子通道为VK_SUBPASS_EXTERNAL）。
+
+```c++
+dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+dependency.srcAccessMask = 0;
+```
+
+接下来的两个字段指定要等待的操作以及这些操作发生的阶段。我们需要等待交换链完成对图像的读取，然后才能访问它。这可以通过等待颜色附件输出阶段本身来完成。
+
+```c++
+dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+```
+
+应等待的操作在颜色附加阶段，涉及颜色附加的编写。这些设置将阻止转换的发生，直到它真正必要（并被允许）：当我们要开始为它写入颜色时。
+
+```c++
+renderPassInfo.dependencyCount = 1;
+renderPassInfo.pDependencies = &dependency;
+```
+
+VkRenderPassCreateInfo结构具有两个字段来指定依赖项数组。
 
 #### Presentation
 
 #### 呈现
 
+绘制帧的最后一步是将结果提交回交换链，以使其最终显示在屏幕上。通过drawFrame函数末尾的VkPresentInfoKHR结构配置演示。
+
+```c++
+VkPresentInfoKHR presentInfo = {};
+presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+presentInfo.waitSemaphoreCount = 1;
+presentInfo.pWaitSemaphores = signalSemaphores;
+```
+
+前两个参数指定了要进行演示之前要等待的信号量，就像VkSubmitInfo一样。
+
+```c++
+VkSwapchainKHR swapChains[] = {swapChain};
+presentInfo.swapchainCount = 1;
+presentInfo.pSwapchains = swapChains;
+presentInfo.pImageIndices = &imageIndex;
+```
+
+接下来的两个参数指定要向其中显示图像的交换链以及每个交换链的图像索引。这几乎总是一个。
+
+```c++
+presentInfo.pResults = nullptr; // Optional
+```
+
+最后一个可选参数称为pResults。它允许您指定一个VkResult值数组，以检查呈现是否成功，以检查每个单独的交换链。如果仅使用单个交换链，则没有必要，因为您可以简单地使用当前函数的返回值。
+
+```c++
+vkQueuePresentKHR(presentQueue, &presentInfo);
+```
+
+vkQueuePresentKHR函数提交请求以将图像呈现给交换链。在下一章中，我们将为vkAcquireNextImageKHR和vkQueuePresentKHR添加错误处理，因为它们的失败并不一定意味着程序应该终止，这与我们迄今为止看到的功能不同。
+
+如果到目前为止您已正确完成所有操作，则在运行程序时现在应该看到类似以下内容的内容：
+
+![img](https://vulkan-tutorial.com/images/triangle.png)
+
+> 这个彩色的三角形看起来可能与您在图形教程中看到的三角形有所不同。这是因为本教程允许着色器在线性色彩空间内插，然后再转换为sRGB色彩空间。有关差异的讨论，请参见[此博客](https://medium.com/@heypete/hello-triangle-meet-swift-and-wide-color-6f9e246616d9)文章。
+
+好极了！不幸的是，您会看到启用验证层后，程序一旦关闭便崩溃。从debugCallback打印到终端的消息告诉我们原因：
+
+![img](https://vulkan-tutorial.com/images/semaphore_in_use.png)
+
+请记住，drawFrame中的所有操作都是异步的。这意味着当我们退出mainLoop中的循环时，绘图和演示操作可能仍在进行。在发生这种情况时清理资源是一个坏主意。
+
+要解决该问题，我们应该等待逻辑设备完成操作，然后退出mainLoop并销毁窗口：
+
+```c++
+void mainLoop() {
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+        drawFrame();
+    }
+
+    vkDeviceWaitIdle(device);
+}
+```
+
+您也可以使用vkQueueWaitIdle等待特定命令队列中的操作完成。这些功能可以用作执行同步的基本方法。您会看到该程序现在在关闭窗口时退出没有问题。
+
 #### Frames in flight
 
 #### 进行中的帧
 
-#### Conclusion
+如果现在在启用验证层的情况下运行应用程序，则可能会出现错误，或者会注意到内存使用量缓慢增长。这样做的原因是应用程序正在使用drawFrame函数快速提交工作，但实际上并没有检查它是否完成。如果CPU提交工作的速度快于GPU跟上的速度，那么队列将缓慢地填满工作。更糟糕的是，我们同时将imageAvailableSemaphore和renderFinishedSemaphore信号量与命令缓冲区一起用于多个帧！
+
+解决此问题的简单方法是在提交后等待工作完成，例如使用vkQueueWaitIdle：
+
+```c++
+void drawFrame() {
+    ...
+
+    vkQueuePresentKHR(presentQueue, &presentInfo);
+
+    vkQueueWaitIdle(presentQueue);
+}
+```
+
+但是，我们可能无法以这种方式最佳地使用GPU，因为整个图形流水线现在一次只能使用一帧。当前帧已经经过的阶段是空闲的，能夠被用于下一帧。现在，我们将扩展我们的应用程序，以允许在运行多个帧的同时仍限制堆积的工作量。
+
+首先在程序顶部添加一个常量，该常量定义应同时处理多少帧：
+
+```c++
+const int MAX_FRAMES_IN_FLIGHT = 2;
+```
+
+每个框架应具有自己的一组信号量：
+
+```c++
+std::vector<VkSemaphore> imageAvailableSemaphores;
+std::vector<VkSemaphore> renderFinishedSemaphores;
+```
+
+应该更改createSemaphores函数以创建所有这些功能：
+
+```c++
+void createSemaphores() {
+    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+
+    VkSemaphoreCreateInfo semaphoreInfo = {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
+
+            throw std::runtime_error("failed to create semaphores for a frame!");
+        }
+}
+```
+
+同样，它们也应该全部清除：
+
+```c++
+void cleanup() {
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+        vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+    }
+
+    ...
+}
+```
+
+要每次都使用正确的一对信号量，我们需要跟踪当前帧。我们将为此使用帧索引：
+
+```c++
+size_t currentFrame = 0;
+```
+
+现在可以将drawFrame函数修改为使用正确的对象：
+
+```c++
+void drawFrame() {
+    vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+    ...
+
+    VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
+
+    ...
+
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
+
+    ...
+}
+```
+
+当然，我们不应忘记每次都前进到下一帧：
+
+```c++
+void drawFrame() {
+    ...
+
+    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+```
+
+通过使用模（％）运算符，我们确保帧索引在每个MAX_FRAMES_IN_FLIGHT帧之后循环。
+
+尽管我们现在已经设置了必需的对象以促进同时处理多个帧，但是实际上我们仍然没有阻止提交超过MAX_FRAMES_IN_FLIGHT个对象。现在只有GPU-GPU同步，没有CPU-GPU同步来跟踪工作的进行情况。当第0帧仍在进行中时，我们可能正在使用第0帧对象！
+
+为了执行CPU-GPU同步，Vulkan提供了第二种类型的同步原语，称为栅栏。栅栏在某种意义上类似于信号量，可以发出信号并等待它们，但是这次我们实际上在自己的代码中等待它们。我们首先为每个帧创建一个栅栏：
+
+```c++
+std::vector<VkSemaphore> imageAvailableSemaphores;
+std::vector<VkSemaphore> renderFinishedSemaphores;
+std::vector<VkFence> inFlightFences;
+size_t currentFrame = 0;
+```
+
+我决定与信号量一起创建栅栏，并将createSemaphores重命名为createSyncObjects：
+
+```c++
+void createSyncObjects() {
+    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+    VkSemaphoreCreateInfo semaphoreInfo = {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo = {};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
+            vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+
+            throw std::runtime_error("failed to create synchronization objects for a frame!");
+        }
+    }
+}
+```
+
+栅栏(VkFence）的创建与信号量的创建非常相似。另外，请确保清理栅栏：
+
+```c++
+void cleanup() {
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+        vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+        vkDestroyFence(device, inFlightFences[i], nullptr);
+    }
+
+    ...
+}
+```
+
+现在，我们将drawFrame更改为使用栅栏进行同步。 vkQueueSubmit调用包括一个可选参数，以传递必须在命令缓冲区完成执行时发出信号的栅栏。我们可以用它来表示一帧已经结束。
+
+```c++
+void drawFrame() {
+    ...
+
+    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+        throw std::runtime_error("failed to submit draw command buffer!");
+    }
+    ...
+}
+```
+
+现在剩下的唯一事情就是更改drawFrame的开头以等待帧完成：
+
+```c++
+void drawFrame() {
+    vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+    vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
+    ...
+}
+```
+
+vkWaitForFences函数采用栅栏数组，并在返回前等待其中的任何一个或全部信号通知。我们在此处传递的VK_TRUE表示我们要等待所有栅栏，但是对于单个栅栏，显然没有关系。就像vkAcquireNextImageKHR一样，此功能也需要超时时间。与信号量不同，我们需要通过使用vkResetFences调用将栅栏重置为手动，以将栅栏恢复为无信号状态。
+
+如果您现在运行该程序，您会发现一些奇怪的事情。该应用程序似乎不再呈现任何内容。启用验证层后，您将看到以下消息：
+
+![img](https://vulkan-tutorial.com/images/unsubmitted_fence.png)
+
+这意味着我们正在等待尚未提交的栅栏。这里的问题是，默认情况下，栅栏是在无信号状态下创建的。这意味着，如果我们之前没有使用过栅栏，则vkWaitForFences将永远等待。为了解决这个问题，我们可以更改栅栏的创建，使其以信号状态进行初始化，就好像我们渲染了完成的初始帧一样：
+
+```c++
+void createSyncObjects() {
+    ...
+
+    VkFenceCreateInfo fenceInfo = {};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    ...
+}
+```
+
+内存泄漏现在消失了，但是程序还不能正常运行。如果MAX_FRAMES_IN_FLIGHT高于交换链图像的数量，或者vkAcquireNextImageKHR乱序返回图像，则有可能我们可能开始渲染为已经运行的交换链图像。为避免这种情况，我们需要跟踪每个交换链图像（一个进行中的帧是否在使用它）。这个映射将通过栅栏引用进行中的帧，因此我们将立即有一个同步对象，等待新帧可以使用该图像。
+
+首先添加一个新列表imagesInFlight进行跟踪：
+
+```c++
+std::vector<VkFence> inFlightFences;
+std::vector<VkFence> imagesInFlight;
+size_t currentFrame = 0;
+```
+
+在createSyncObjects中进行准备：
+
+```c++
+void createSyncObjects() {
+    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+    imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE);
+
+    ...
+}
+```
+
+最初，没有一个帧在使用图像，因此我们将其显式初始化为没有栅栏。现在，我们将修改drawFrame以等待正在使用刚刚为新帧分配的图像的任何先前帧：
+
+```c++
+void drawFrame() {
+    ...
+
+    vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+    // Check if a previous frame is using this image (i.e. there is its fence to wait on)
+    if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
+        vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+    }
+    // Mark the image as now being in use by this frame
+    imagesInFlight[imageIndex] = inFlightFences[currentFrame];
+
+    ...
+}
+```
+
+因为我们现在有更多对vkWaitForFences的调用，所以应该移动vkResetFences调用。最好在实际使用围栏之前简单地调用它：
+
+```c++
+void drawFrame() {
+    ...
+
+    vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
+    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+        throw std::runtime_error("failed to submit draw command buffer!");
+    }
+
+    ...
+}
+```
+
+现在，我们已经实现了所有必需的同步，以确保排队的工作帧不超过两个，并且这些帧不会意外地使用相同的图像。请注意，对于代码的其他部分（如最终清理）来说，可以依靠更粗糙的同步（例如vkDeviceWaitIdle）。您应该根据性能要求决定使用哪种方法。
+
+要通过示例了解有关同步的更多信息，请查看Khronos的[广泛概述](https://github.com/KhronosGroup/Vulkan-Docs/wiki/Synchronization-Examples#swapchain-image-acquire-and-present)。
+
+#### Conclusion在createSyncObjects：
 
 #### 总结
 
+大约900行代码之后，我们终于到了在屏幕上看到一些东西的阶段！引导Vulkan程序确实是很多工作，但重要的是，Vulkan通过其明确性为您提供了大量控制。我建议您现在花一些时间重新阅读代码，并为程序中所有Vulkan对象的用途以及它们之间的相互关系建立一个思维模型。我们将基于这些知识来扩展程序的功能。
+
+在下一章中，我们将介绍行为良好的Vulkan程序所需要的其他小内容。
