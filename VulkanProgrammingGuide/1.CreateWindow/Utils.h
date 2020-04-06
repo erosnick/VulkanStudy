@@ -6,6 +6,11 @@
 #include <vector>
 #include <fstream>
 
+namespace Color
+{
+	const  VkClearValue CornFlower = { 1.0f / 255 * 100.0f, 1.0f / 255 * 149.0f, 1.0f / 255 * 237.0f };
+}
+
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -20,4 +25,3 @@ VkResult createDebugUtilsMessengerEXT(VkInstance instance,
 void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
 
 std::vector<char> readFile(const std::string& fileName);
-

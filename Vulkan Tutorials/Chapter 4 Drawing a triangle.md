@@ -1,10 +1,11 @@
-[TOC]
+
 
 [TOC]
 
-# Drawing a triangle
+# Chapter 4 Drawing a triangle
 
-# 绘制一个三角形
+# 第四章 绘制一个三角形
+
 ## Setup
 ## 设置
 
@@ -3902,9 +3903,28 @@ static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 
 现在尝试运行该程序并调整窗口大小，以查看是否确实使用窗口正确调整了帧缓冲区的大小。
 
-
-
 ### Handling minimization
 
 ### 处理最小化
+
+在另一种情况下，交换链可能会过期，这是一种特殊的窗口缩放：窗口最小化。这种情况很特殊，因为它将导致帧缓冲区的大小为0。在本教程中，我们将通过扩展recreateSwapChain函数来暂停直到窗口再次出现在前景中，从而解决该问题：
+
+```c++
+void recreateSwapChain() {
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    vkDeviceWaitIdle(device);
+
+    ...
+}
+```
+
+第一个glfwGetFramebufferSize调用可以处理帧缓冲大小已经是正确的且glfwWaitEvent无需等待的情况。
+
+恭喜，您现在已经完成了第一个行为良好的Vulkan程序！在下一章中，我们将摆脱顶点着色器中的硬编码顶点，并实际使用顶点缓冲区。
 
