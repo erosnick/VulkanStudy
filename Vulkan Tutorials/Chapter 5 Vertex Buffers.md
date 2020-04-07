@@ -452,7 +452,7 @@ const std::vector<Vertex> vertices = {
 
 缓冲区复制命令需要支持传输操作的队列家族，该家族使用VK_QUEUE_TRANSFER_BIT表示。好消息是，任何具有VK_QUEUE_GRAPHICS_BIT或VK_QUEUE_COMPUTE_BIT功能的队列家族都已隐式支持VK_QUEUE_TRANSFER_BIT操作。在这种情况下，不需要实现在queueFlags中明确列出它。
 
-如果您喜欢挑战，那么仍然可以尝试使用其他专门用于传输操作的队列系列。它将要求您对程序进行以下修改：
+如果您喜欢挑战，那么仍然可以尝试使用其他专门用于传输操作的队列家族。它将要求您对程序进行以下修改：
 
 * 修改QueueFamilyIndices和findQueueFamilies以使用VK_QUEUE_TRANSFER位而不是VK_QUEUE_GRAPHICS_BIT显式查找队列家族。
 * 修改createLogicalDevice以请求传输队列的句柄
@@ -770,3 +770,267 @@ vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0,
 现在，您知道了如何通过重新使用带有索引缓冲区的顶点来节省内存。在以后的章节中，我们将加载复杂的3D模型，这一点将变得尤为重要。
 
 上一章已经提到，您应该从单个内存分配中分配多个资源（例如缓冲区），但实际上您应该更进一步。驱动程序开发人员建议您也将多个缓冲区（例如顶点和索引缓冲区）存储到单个VkBuffer中，并在vkCmdBindVertexBuffers等命令中使用偏移量。这样做的好处是，在这种情况下，您的数据更接近缓存，因为它们之间的距离更近。如果在相同的渲染操作期间未使用多个资源，则甚至有可能对多个资源重用同一块内存，当然，只要刷新它们的数据即可。这称为别名，某些Vulkan函数具有显式标志来指定您要执行此操作。
+
+译注：1.对于传输队列章节提到的挑战的尝试
+
+> 如果您喜欢挑战，那么仍然可以尝试使用其他专门用于传输操作的队列家族。它将要求您对程序进行以下修改：
+>
+> * 修改QueueFamilyIndices和findQueueFamilies以使用VK_QUEUE_TRANSFER位而不是VK_QUEUE_GRAPHICS_BIT显式查找队列家族。
+> * 修改createLogicalDevice以请求传输队列的句柄
+> * 为在传输队列系列上提交的命令缓冲区创建第二个命令池
+> * 将资源的共享模式更改为VK_SHARING_MODE_CONCURRENT并指定图形和传输队列家族
+> * 将任何传输命令（例如vkCmdCopyBuffer（将在本章中使用））提交到传输队列而不是图形队列
+
+1.在QueueFamilyIndices结构体中添加一项：
+
+```c++
+struct QueueFamilyIndices
+{
+	std::optional<uint32_t> graphicsFamily;
+	std::optional<uint32_t> presentFamily;
+	std::optional<uint32_t> transferFamily;
+
+	bool isComplete()
+	{
+		return graphicsFamily.has_value() && presentFamily.has_value() && transferFamily.has_value();
+	}
+};
+```
+
+2.修改findQueueFamilies函数：
+
+```c++
+QueueFamilyIndices Application::findQueueFamilies(VkPhysicalDevice device)
+{
+	QueueFamilyIndices indices;
+
+	uint32_t queueFamilyCount = 0;
+
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+	int i = 0;
+
+	for (const auto queueFamily : queueFamilies)
+	{
+		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		{
+			indices.graphicsFamily = i;
+		}
+
+		if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT && i != 0)
+		{
+			indices.transferFamily = i;
+		}
+
+		VkBool32 presentSupport = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
+		if (presentSupport)
+		{
+			indices.presentFamily = i;
+		}
+
+		if (indices.isComplete())
+		{
+			break;
+		}
+
+		i++;
+	}
+
+	return indices;
+}
+```
+
+从实验中可以发现支持VK_QUEUE_TRANSFER_BIT的队列家族不止一个，实际上支持VK_QUEUE_GRAPHICS_BIT的队列家族同时也是支持VK_QUEUE_TRANSFER_BIT的，但是我们这里的目的是使用两个队列家族，因此就要找到另一个队列家族。
+
+3.修改createLogicalDevice函数来获得传输队列的句柄transferQueue：
+
+```
+void Application::createLogicalDevice()
+{
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+	std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value(), indices.transferFamily.value() };
+
+	float queuePriority = 1.0f;
+	for (uint32_t queueFamily : uniqueQueueFamilies)
+	{
+		VkDeviceQueueCreateInfo queueCreateInfo = {};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = queueFamily;
+		queueCreateInfo.queueCount = 1;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+		queueCreateInfos.push_back(queueCreateInfo);
+	}
+
+	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
+	vkGetPhysicalDeviceFeatures(physicalDevice, &physicalDeviceFeatures);
+
+	VkDeviceCreateInfo deviceCreateInfo = {};
+
+	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
+
+
+	vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+	vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+	vkGetDeviceQueue(device, indices.transferFamily.value(), 0, &transferQueue);
+}
+```
+
+4.创建第二个命令池transferCommandPool：
+
+```c++
+void Application::createCommandPool()
+{
+	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+	VkCommandPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create command pool!");
+	}
+
+	VkCommandPoolCreateInfo transformPoolInfo = {};
+	transformPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	transformPoolInfo.queueFamilyIndex = queueFamilyIndices.transferFamily.value();
+
+	if (vkCreateCommandPool(device, &transformPoolInfo, nullptr, &transferCommandPool) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create transfer command pool!");
+	}
+}
+
+```
+
+5.修改createSwapChain函数，将资源的共享模式改为VK_SHARING_MODE_CONCURRENT，以实现在多个队列之间的共享：
+
+```c++
+QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.transferFamily.value() };
+
+if (indices.graphicsFamily != indices.transferFamily)
+{
+	createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+	createInfo.queueFamilyIndexCount = 2;
+	createInfo.pQueueFamilyIndices = queueFamilyIndices;
+}
+else
+{
+	createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	createInfo.queueFamilyIndexCount = 0;
+	createInfo.pQueueFamilyIndices = nullptr;
+}
+```
+6.修改copyBuffer函数，将传输命令提交到新的transferQueue：
+
+```c++
+void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+{
+	VkCommandBufferAllocateInfo allocateInfo = {};
+	allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocateInfo.commandPool = transferCommandPool;
+	allocateInfo.commandBufferCount = 1;
+
+	VkCommandBuffer commandBuffer;
+	vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer);
+
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+	VkBufferCopy copyRegion = {};
+	copyRegion.srcOffset = 0;
+	copyRegion.dstOffset = 0;
+	copyRegion.size = size;
+
+	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	vkQueueSubmit(transferQueue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(transferQueue);
+
+	vkFreeCommandBuffers(device, transferCommandPool, 1, &commandBuffer);
+}
+```
+
+2.合并Vertex Buffer和Index Buffer到一个VkBuffer
+
+1.创建两个新的变量
+
+```c++
+	VkBuffer allInOneBuffer;
+	VkDeviceMemory allInOneBufferMemory;
+```
+
+allInOneBuffer会保存Vertex Buffer和Index Buffer的数据。
+
+2.创建一个新的函数createAllInOneBuffer
+
+```c++
+void Application::createAllInOneBuffer()
+{
+	VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
+	VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
+
+	VkDeviceSize allInOneBufferSize = vertexBufferSize + indexBufferSize;
+
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(allInOneBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+									 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+									 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+									 stagingBuffer, stagingBufferMemory);
+
+	void* data = nullptr;
+	vkMapMemory(device, stagingBufferMemory, 0, allInOneBufferSize, 0, &data);
+	memcpy_s(data, (size_t)vertexBufferSize, vertices.data(), (size_t)vertexBufferSize);
+	memcpy_s((Vertex*)data + vertices.size(), (size_t)indexBufferSize, indices.data(), (size_t)indexBufferSize);
+
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	createBuffer(allInOneBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+									 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+									 VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+									 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+									 allInOneBuffer, allInOneBufferMemory);
+
+	copyBuffer(stagingBuffer, allInOneBuffer, allInOneBufferSize);
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+```
+
+这个函数和之前的createVertexBuffer和createIndexBuffer差不多，不同点是，现在我们将vertices和indices的数据都拷贝到allInOneBuffer中，并且在创建allInOneBuffer的时候，usage参数同时指定VK_BUFFER_USAGE_VERTEX_BUFFER_BIT和VK_BUFFER_USAGE_INDEX_BUFFER_BIT。
+
+3.绑定新的allInOneBuffer
+
+修改createCommandBuffer时，将allInOneBuffer进行绑定。
+
+```c++
+vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+VkDeviceSize offset = sizeof(vertices[0]) * vertices.size();
+
+vkCmdBindIndexBuffer(commandBuffers[i], allInOneBuffer, offset, VK_INDEX_TYPE_UINT16);
+```
+
