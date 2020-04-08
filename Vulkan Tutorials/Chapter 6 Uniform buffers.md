@@ -10,9 +10,9 @@
 
 ### 简介
 
-现在，我们可以为每个顶点将任意属性传递给顶点着色器，但是全局变量呢？从本章开始，我们将继续介绍3D图形，这需要一个模型-视图-投影(model-view-projection)矩阵。我们可以将其包含为顶点数据，但这会浪费内存，并且每当转换发生更改时，都需要我们更新顶点缓冲区。转换很容易每帧都发生改变。
+现在，我们可以为每个顶点将任意属性传递给顶点着色器，但是全局变量呢？从本章开始，我们将继续介绍3D图形，这需要一个模型-视图-投影(model-view-projection)矩阵。我们可以将其包含为顶点数据，但这会浪费内存，并且每当变换发生更改时，都需要我们更新顶点缓冲区。而变换很容易每帧都发生改变。
 
-在Vulkan中解决此问题的正确方法是使用资源描述符(resource descriptor)。描述符是着色器自由访问缓冲区和图像等资源的一种方式。我们将建立一个包含转换矩阵的缓冲区，并让顶点着色器通过描述符访问它们。描述符的使用包括三个部分：
+在Vulkan中解决此问题的正确方法是使用资源描述符(resource descriptor)。描述符是着色器自由访问缓冲区和图像等资源的一种方式。我们将建立一个包含变换矩阵的缓冲区，并让顶点着色器通过描述符访问它们。描述符的使用包括三个部分：
 
 * 在管线创建期间指定描述符布局(descriptor layout)
 * 从描述符池分配描述符集(descriptor set)
@@ -254,7 +254,7 @@ void updateUniformBuffer(uint32_t currentImage) {
 
 此函数将在每帧生成一个新的变换，以使几何体旋转。我们需要包括两个新的头文件才能实现此功能：
 
-glm/ gtc/matrix_transform.hpp头文件导出了可用于生成模型转换（如glm :: rotate），视图转换（如glm :: lookAt）和投影变换（如glm :: perspective）的函数。必须使用GLM_FORCE_RADIANS定义来确保glm :: rotate之类的函数使用弧度作为参数，以避免任何可能的混淆。
+glm/gtc/matrix_transform.hpp头文件导出了可用于生成模型转换（如glm :: rotate），视图转换（如glm :: lookAt）和投影变换（如glm :: perspective）的函数。必须使用GLM_FORCE_RADIANS定义来确保glm :: rotate之类的函数使用弧度作为参数，以避免任何可能的混淆。
 
 chrono标准库头文件提供了用于精确计时的函数。我们将使用它来确保几何体每秒旋转90度，而不管帧频如何。
 
@@ -305,7 +305,7 @@ vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data
 vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
 ```
 
-以这种方式使用UBO并不是将频繁更改的值传递给着色器的最有效方法。将少量数据缓冲区传递给着色器的更有效方法是推送常量。我们可能会在以后的章节中介绍这些内容。
+以这种方式使用UBO并不是将频繁更改的值传递给着色器的最有效方法。将少量数据缓冲区传递给着色器的更有效方法是推送常量(push constants)。我们可能会在以后的章节中介绍这些内容。
 
 在下一章中，我们将介绍描述符集，该描述符集会将VkBuffers实际上绑定到uniform缓冲区描述符，以便着色器可以访问此变换数据。
 
@@ -444,6 +444,18 @@ allocInfo.pSetLayouts = layouts.data();
 
 添加一个类成员来保存描述符集句柄，并使用vkAllocateDescriptorSets分配它们：
 
+```c++
+VkDescriptorPool descriptorPool;
+std::vector<VkDescriptorSet> descriptorSets;
+
+...
+
+descriptorSets.resize(swapChainImages.size());
+if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+    throw std::runtime_error("failed to allocate descriptor sets!");
+}
+```
+
 您不需要显式清理描述符集，因为在销毁描述符池时，它们将自动释放。对vkAllocateDescriptorSets的调用将分配描述符集，每个描述符集具有一个uniform缓冲区描述符。
 
 现在已经分配了描述符集，但是仍然需要配置其中的描述符。现在，我们将添加一个循环以填充每个描述符：
@@ -509,7 +521,7 @@ vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe
 vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 ```
 
-与顶点和索引缓冲区不同，描述符集并不是图形管线所独有的。因此，我们需要指定是否要将描述符集绑定到图形或计算管道。下一个参数是描述符所基于的布局。接下来的三个参数指定第一个描述符集的索引，要绑定的集的数量以及要绑定的集的数组。我们待会儿再讲。最后两个参数指定用于动态描述符的偏移量数组。我们将在以后的章节中介绍这些内容。
+与顶点和索引缓冲区不同，描述符集并不是图形管线所独有的。因此，我们需要指定是否要将描述符集绑定到图形或计算管道。下一个参数是描述符所基于的布局。接下来的三个参数指定第一个描述符集的索引，要绑定的集合的数量以及要绑定的集合的数组。我们待会儿再讲。最后两个参数指定用于动态描述符的偏移量数组。我们将在以后的章节中介绍这些内容。
 
 如果您现在运行程序，那么您会发现不幸的是看不到任何内容。问题在于，由于我们在投影矩阵中进行了Y翻转，因此现在以逆时针顺序而不是顺时针顺序绘制了顶点。这将导致背面剔除，并阻止绘制任何几何图形。转到createGraphicsPipeline函数并在VkPipelineRasterizationStateCreateInfo中修改frontFace以更正此问题：
 
@@ -656,5 +668,5 @@ struct UniformBufferObject {
 layout(set = 0, binding = 0) uniform UniformBufferObject { ... }
 ```
 
-您可以使用此功能将每个对象不同的描述符和共享的描述符放到单独的描述符集合中。在这种情况下，您可以避免在绘制调用之间重新绑定大多数描述符，这可能会更有效。
+您可以使用此功能将每个对象不同的描述符和共享的描述符放到单独的描述符集合中。在这种情况下，您可以避免在绘制调用之间重新绑定大多数描述符，这可能会更高效。
 

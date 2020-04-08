@@ -25,3 +25,9 @@ VkResult createDebugUtilsMessengerEXT(VkInstance instance,
 void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
 
 std::vector<char> readFile(const std::string& fileName);
+
+#define  VKCREATECHECK(result, message) \
+if (result != VK_SUCCESS)				\
+{										\
+	throw std::runtime_error(message);	\
+}										
