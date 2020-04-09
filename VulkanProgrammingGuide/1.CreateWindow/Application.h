@@ -5,9 +5,11 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define  GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
+#include <glm/gtx/hash.hpp>
 
 #include <string>
 #include <vector>
@@ -82,7 +84,27 @@ struct Vertex
 
 		return attributeDescriptions;
 	}
+
+	bool operator==(const Vertex& other) const
+	{
+		return position == other.position &&
+			   color == other.color &&
+			   texCoord == other.texCoord;
+	}
 };
+
+namespace std
+{
+	template<> struct hash<Vertex>
+	{
+		size_t operator()(Vertex const& vertex) const
+		{
+			return ((hash<glm::vec3>()(vertex.position) ^
+					(hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+					(hash<glm::vec2>()(vertex.texCoord) << 1);
+		}
+	};
+}
 
 struct UniformBufferObject
 {
@@ -144,18 +166,58 @@ public:
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-	void createTextureImage();
+	void prepareTextureImages();
+	void createTextureImage(std::string filePath, VkImage& image, VkDeviceMemory& imageMemory);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 	void createTextureImageView();
-	void createTextureSampler();
+	void createTextureSampler(VkSampler& sampler);
+	void prepareTextureSamples();
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+	void createBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags usage, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	VkCommandBuffer beginSingleTimeCommands(VkCommandPool commandPool);
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkQueue queue, VkCommandPool commandPool);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-	void createVertexBuffer();
-	void createIndexBuffer();
-	void createAllInOneBuffer();
+	void loadModel();
+	void createVertexBuffer(const std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory);
+	void createIndexBuffer(const std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory);
+
+	template<class T>
+	void createBuffer(T dataArray, VkBufferUsageFlags usage, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+	{
+		VkDeviceSize bufferSize = sizeof(dataArray[0]) * dataArray.size();
+
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+
+		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+								 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |	// RAM
+								 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+								 stagingBuffer, stagingBufferMemory);
+
+		void* data = nullptr;
+		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+		memcpy_s(data, (size_t)bufferSize, dataArray.data(), (size_t)bufferSize);
+		vkUnmapMemory(device, stagingBufferMemory);
+
+		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+								 usage,
+								 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,	// VRAM
+								 buffer, bufferMemory);
+
+		copyBuffer(stagingBuffer, buffer, bufferSize);
+
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+	}
+
+	void prepareVertexBufferAndIndexBuffer();
+	void prepareModelResources();
+	void createAllInOneBuffer(const std::vector<Vertex>& vertices, 
+							  const std::vector<uint32_t>& indeices,
+							  VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+	void prepareGeometryBuffers();
+	void prepareModelBuffers();
 	void createUniformBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
@@ -212,7 +274,7 @@ protected:
 
 	bool framebufferResized = false;
 
-	const std::vector<Vertex> vertices = {
+	const std::vector<Vertex> geometryVertices = {
 		{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
 		{{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
 		{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
@@ -224,19 +286,32 @@ protected:
 		{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
 	};
 
-	const std::vector<uint16_t> indices = {
+	const std::vector<uint32_t> geometryIndices = {
 		0, 1, 2, 2, 3, 0,
 		4, 5, 6, 6, 7, 4
 	};
 
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
+	std::vector<Vertex> modelVertices;
+	std::vector<uint32_t> modelIndices;
 
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexBufferMemory;
+	VkBuffer geometryVertexBuffer;
+	VkDeviceMemory geometryVertexBufferMemory;
+
+	VkBuffer modelVertexBuffer;
+	VkDeviceMemory modelVertexBufferMemory;
+
+	VkBuffer modelIndexBuffer;
+	VkDeviceMemory modelIndexBufferMemory;
+
+	VkBuffer geometryIndexBuffer;
+	VkDeviceMemory geometryIndexBufferMemory;
 
 	VkBuffer allInOneBuffer;
 	VkDeviceMemory allInOneBufferMemory;
+
+	// Model Vertex & Index buffer
+	VkBuffer modelAllInOneBuffer;
+	VkDeviceMemory modelAllInOneBufferMemory;
 
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBufferMemorys;
@@ -244,12 +319,17 @@ protected:
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets;
 
-	VkImage textureImage;
-	VkImageView textureImageView;
-	VkSampler textureSampler;
-	VkDeviceMemory textureDeviceMemory;
+	VkImage geometryTextureImage;
+	VkImageView geometryTextureImageView;
+	VkSampler geometryTextureSampler;
+	VkDeviceMemory geometryTextureDeviceMemory;
 	
 	VkImage depthImage;
 	VkImageView depthImageView;
 	VkDeviceMemory depthImageMemory;
+
+	VkImage modelTextureImage;
+	VkImageView modelTextureImageView;
+	VkSampler modelTextureSampler;
+	VkDeviceMemory modelTextureImageMemory;
 };

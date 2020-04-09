@@ -6,11 +6,18 @@
 #include <chrono>
 #include <GLFW/glfw3native.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <unordered_map>
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
+
+const std::string MODEL_PATH = "models/chalet.obj";
+const std::string TEXTURE_PATH = "textures/chalet.jpg";
 
 Application::Application(int inWindowWidth, int inWindowHeight, const std::string title)
 	: windowWidth(inWindowWidth), 
@@ -86,12 +93,13 @@ void Application::initializeVulkan()
 	createCommandPool();
 	createDepthResources();
 	createFramebuffers();
-	createTextureImage();
+	prepareTextureImages();
 	createTextureImageView();
-	createTextureSampler();
-	createVertexBuffer();
-	createIndexBuffer();
-	createAllInOneBuffer();
+	prepareTextureSamples();
+	loadModel();
+	prepareVertexBufferAndIndexBuffer();
+	prepareGeometryBuffers();
+	prepareModelBuffers();
 	createUniformBuffers();
 	createDescriptorPool();
 	createDescriptorSets();
@@ -821,14 +829,21 @@ void Application::createDescriptorSetLayout()
 	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	uboLayoutBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
-	samplerLayoutBinding.binding = 1;
-	samplerLayoutBinding.descriptorCount = 1;
-	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerLayoutBinding.pImmutableSamplers = nullptr;
-	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	VkDescriptorSetLayoutBinding geometrySamplerLayoutBinding = {};
+	geometrySamplerLayoutBinding.binding = 1;
+	geometrySamplerLayoutBinding.descriptorCount = 1;
+	geometrySamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	geometrySamplerLayoutBinding.pImmutableSamplers = nullptr;
+	geometrySamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+	VkDescriptorSetLayoutBinding modelSamplerLayoutBinding = {};
+	modelSamplerLayoutBinding.binding = 2;
+	modelSamplerLayoutBinding.descriptorCount = 1;
+	modelSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	modelSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	modelSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, geometrySamplerLayoutBinding, modelSamplerLayoutBinding };
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -927,9 +942,9 @@ void Application::createGraphicsPipeline()
 	// Depth and stencil testing
 	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
 	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-		VK_COLOR_COMPONENT_G_BIT |
-		VK_COLOR_COMPONENT_B_BIT |
-		VK_COLOR_COMPONENT_A_BIT;
+											   VK_COLOR_COMPONENT_G_BIT |
+											   VK_COLOR_COMPONENT_B_BIT |
+											   VK_COLOR_COMPONENT_A_BIT;
 
 	colorBlendAttachmentState.blendEnable = VK_TRUE;
 	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
@@ -1226,13 +1241,19 @@ void Application::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t wid
 	endSingleTimeCommands(commandBuffer, transferQueue, transferCommandPool);
 }
 
-void Application::createTextureImage()
+void Application::prepareTextureImages()
+{
+	createTextureImage("textures/texture.jpg", geometryTextureImage, geometryTextureDeviceMemory);
+	createTextureImage(TEXTURE_PATH, modelTextureImage, modelTextureImageMemory);
+}
+
+void Application::createTextureImage(std::string filePath, VkImage& image, VkDeviceMemory& imageMemory)
 {
 	int textureWidth;
 	int textureHeight;
 	int textureChannels;
 
-	stbi_uc* pixels = stbi_load("textures/texture.jpg", &textureWidth, &textureHeight, &textureChannels, STBI_rgb_alpha);
+	stbi_uc* pixels = stbi_load(filePath.c_str(), &textureWidth, &textureHeight, &textureChannels, STBI_rgb_alpha);
 
 	VkDeviceSize imageSize = textureWidth * textureHeight * 4;
 
@@ -1261,11 +1282,11 @@ void Application::createTextureImage()
 											 VK_IMAGE_USAGE_TRANSFER_DST_BIT | 
 											 VK_IMAGE_USAGE_SAMPLED_BIT, 
 											 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-											 textureImage, textureDeviceMemory);
+											 image, imageMemory);
 
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(textureWidth), static_cast<uint32_t>(textureHeight));
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copyBufferToImage(stagingBuffer, image, static_cast<uint32_t>(textureWidth), static_cast<uint32_t>(textureHeight));
+	transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -1293,10 +1314,11 @@ VkImageView Application::createImageView(VkImage image, VkFormat format, VkImage
 
 void Application::createTextureImageView()
 {
-	textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+	geometryTextureImageView = createImageView(geometryTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+	modelTextureImageView = createImageView(modelTextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
-void Application::createTextureSampler()
+void Application::createTextureSampler(VkSampler& sampler)
 {
 	VkSamplerCreateInfo samplerInfo = {};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -1316,7 +1338,13 @@ void Application::createTextureSampler()
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 0.0f;
 
-	VKCHECK(vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler), "Failed to create texture sampler!");
+	VKCHECK(vkCreateSampler(device, &samplerInfo, nullptr, &sampler), "Failed to create texture sampler!");
+}
+
+void Application::prepareTextureSamples()
+{
+	createTextureSampler(geometryTextureSampler);
+	createTextureSampler(modelTextureSampler);
 }
 
 uint32_t Application::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
@@ -1375,6 +1403,32 @@ void Application::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMe
 	vkBindBufferMemory(device, buffer, bufferMemory, 0);
 }
 
+void Application::createBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags usage, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+{
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |	// RAM
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer, stagingBufferMemory);
+
+	void* data = nullptr;
+	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy_s(data, (size_t)bufferSize, geometryVertices.data(), (size_t)bufferSize);
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+							 usage,
+							 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,	// VRAM
+		buffer, bufferMemory);
+
+	copyBuffer(stagingBuffer, buffer, bufferSize);
+
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+
 VkCommandBuffer Application::beginSingleTimeCommands(VkCommandPool commandPool)
 {
 	VkCommandBufferAllocateInfo allocateInfo = {};
@@ -1424,7 +1478,66 @@ void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSiz
 	endSingleTimeCommands(commandBuffer, transferQueue, transferCommandPool);
 }
 
-void Application::createVertexBuffer()
+void Application::loadModel()
+{
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn;
+	std::string error;
+
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, MODEL_PATH.c_str()))
+	{
+		throw std::runtime_error(warn + error);
+	}
+
+	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+
+	for (const auto& shape : shapes)
+	{
+		for (const auto& index : shape.mesh.indices)
+		{
+			Vertex vertex = {};
+
+			vertex.position = {
+				attrib.vertices[3 * index.vertex_index + 0],
+				attrib.vertices[3 * index.vertex_index + 1],
+				attrib.vertices[3 * index.vertex_index + 2]
+			};
+
+			if (attrib.texcoords.size() > 0)
+			{
+				vertex.texCoord = {
+					attrib.texcoords[2 * index.texcoord_index + 0],
+					1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+				};
+			}
+
+			vertex.color = { 1.0f, 1.0f, 1.0f };
+
+			if (uniqueVertices.count(vertex) == 0)
+			{
+				uniqueVertices[vertex] = static_cast<uint32_t>(modelVertices.size());
+				modelVertices.push_back(vertex);
+			}
+
+			modelIndices.push_back(uniqueVertices[vertex]);
+		}
+	}
+}
+
+void Application::prepareVertexBufferAndIndexBuffer()
+{
+	createBuffer(geometryVertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, geometryVertexBuffer, geometryVertexBufferMemory);
+
+	createBuffer(geometryIndices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, geometryIndexBuffer, geometryIndexBufferMemory);
+
+	createBuffer(modelVertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, modelVertexBuffer, modelVertexBufferMemory);
+
+	createBuffer(modelIndices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, modelIndexBuffer, modelIndexBufferMemory);
+}
+
+void Application::createVertexBuffer(const std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory)
 {
 	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
@@ -1438,7 +1551,7 @@ void Application::createVertexBuffer()
 
 	void* data = nullptr;
 	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy_s(data, (size_t)bufferSize, vertices.data(), (size_t)bufferSize);
+	memcpy_s(data, (size_t)bufferSize, geometryVertices.data(), (size_t)bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
@@ -1452,7 +1565,7 @@ void Application::createVertexBuffer()
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Application::createIndexBuffer()
+void Application::createIndexBuffer(const std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory)
 {
 	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
@@ -1465,24 +1578,31 @@ void Application::createIndexBuffer()
 
 	void* data = nullptr;
 	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy_s(data, (size_t)bufferSize, indices.data(), (size_t)bufferSize);
+	memcpy_s(data, (size_t)bufferSize, geometryIndices.data(), (size_t)bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
 							 VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 							 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,	// VRAM
-							 indexBuffer, indexBufferMemory);
+							 geometryIndexBuffer, geometryIndexBufferMemory);
 
-	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+	copyBuffer(stagingBuffer, geometryIndexBuffer, bufferSize);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Application::createAllInOneBuffer()
+void Application::prepareModelResources()
+{
+
+}
+
+void Application::createAllInOneBuffer(const std::vector<Vertex>& vertices, 
+									   const std::vector<uint32_t>& indeices, 
+									   VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
 	VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
-	VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
+	VkDeviceSize indexBufferSize = sizeof(indeices[0]) * indeices.size();
 
 	VkDeviceSize allInOneBufferSize = vertexBufferSize + indexBufferSize;
 
@@ -1496,18 +1616,28 @@ void Application::createAllInOneBuffer()
 	void* data = nullptr;
 	vkMapMemory(device, stagingBufferMemory, 0, allInOneBufferSize, 0, &data);
 	memcpy_s(data, (size_t)vertexBufferSize, vertices.data(), (size_t)vertexBufferSize);
-	memcpy_s((Vertex*)data + vertices.size(), (size_t)indexBufferSize, indices.data(), (size_t)indexBufferSize);
+	memcpy_s((Vertex*)data + vertices.size(), (size_t)indexBufferSize, indeices.data(), (size_t)indexBufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
 	createBuffer(allInOneBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
 									 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
 									 VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 									 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-									 allInOneBuffer, allInOneBufferMemory);
+									 buffer, bufferMemory);
 
-	copyBuffer(stagingBuffer, allInOneBuffer, allInOneBufferSize);
+	copyBuffer(stagingBuffer, buffer, allInOneBufferSize);
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+
+void Application::prepareGeometryBuffers()
+{
+	createAllInOneBuffer(geometryVertices, geometryIndices, allInOneBuffer, allInOneBufferMemory);
+}
+
+void Application::prepareModelBuffers()
+{
+	createAllInOneBuffer(modelVertices, modelIndices, modelAllInOneBuffer, modelAllInOneBufferMemory);
 }
 
 void Application::createUniformBuffers()
@@ -1566,12 +1696,17 @@ void Application::createDescriptorSets()
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject);
 
-		VkDescriptorImageInfo imageInfo = {};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = textureImageView;
-		imageInfo.sampler = textureSampler;
+		VkDescriptorImageInfo geometryImageInfo = {};
+		geometryImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		geometryImageInfo.imageView = geometryTextureImageView;
+		geometryImageInfo.sampler = geometryTextureSampler;
 
-		std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
+		VkDescriptorImageInfo modelImageInfo = {};
+		modelImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		modelImageInfo.imageView = modelTextureImageView;
+		modelImageInfo.sampler = modelTextureSampler;
+
+		std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[0].dstSet = descriptorSets[i];
 		descriptorWrites[0].dstBinding = 0;
@@ -1587,7 +1722,15 @@ void Application::createDescriptorSets()
 		descriptorWrites[1].dstArrayElement = 0;
 		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		descriptorWrites[1].descriptorCount = 1;
-		descriptorWrites[1].pImageInfo = &imageInfo;
+		descriptorWrites[1].pImageInfo = &geometryImageInfo;
+
+		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[2].dstSet = descriptorSets[i];
+		descriptorWrites[2].dstBinding = 2;
+		descriptorWrites[2].dstArrayElement = 0;
+		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[2].descriptorCount = 1;
+		descriptorWrites[2].pImageInfo = &modelImageInfo;
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
@@ -1653,14 +1796,14 @@ void Application::createCommandBuffers()
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-		VkBuffer vertexBuffers[] = { allInOneBuffer };
+		VkBuffer vertexBuffers[] = { modelAllInOneBuffer };
 		VkDeviceSize offsets[] = { 0 };
 
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
-		VkDeviceSize offset = sizeof(vertices[0]) * vertices.size();
+		VkDeviceSize offset = sizeof(modelVertices[0]) * modelVertices.size();
 
-		vkCmdBindIndexBuffer(commandBuffers[i], allInOneBuffer, offset, VK_INDEX_TYPE_UINT16);
+		vkCmdBindIndexBuffer(commandBuffers[i], modelAllInOneBuffer, offset, VK_INDEX_TYPE_UINT32);
 
 		VkViewport viewport = {};
 		viewport.x = 0.0f;
@@ -1680,7 +1823,7 @@ void Application::createCommandBuffers()
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, 
 								pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
 
-		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(modelIndices.size()), 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -1810,22 +1953,36 @@ void Application::cleanup()
 {
 	cleanupSwapChain();
 
-	vkDestroySampler(device, textureSampler, nullptr);
-	vkDestroyImageView(device, textureImageView, nullptr);
+	vkDestroySampler(device, modelTextureSampler, nullptr);
+	vkDestroyImageView(device, modelTextureImageView, nullptr);
+	vkDestroyImage(device, modelTextureImage, nullptr);
+	vkFreeMemory(device, modelTextureImageMemory, nullptr);
 
-	vkDestroyImage(device, textureImage, nullptr);
-	vkFreeMemory(device, textureDeviceMemory, nullptr);
+	vkDestroySampler(device, geometryTextureSampler, nullptr);
+	vkDestroyImageView(device, geometryTextureImageView, nullptr);
+
+	vkDestroyImage(device, geometryTextureImage, nullptr);
+	vkFreeMemory(device, geometryTextureDeviceMemory, nullptr);
 
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
+	vkDestroyBuffer(device, modelAllInOneBuffer, nullptr);
+	vkFreeMemory(device, modelAllInOneBufferMemory, nullptr);
+
 	vkDestroyBuffer(device, allInOneBuffer, nullptr);
 	vkFreeMemory(device, allInOneBufferMemory, nullptr);
+	
+	vkDestroyBuffer(device, modelIndexBuffer, nullptr);
+	vkFreeMemory(device, modelIndexBufferMemory, nullptr);
 
-	vkDestroyBuffer(device, indexBuffer, nullptr);
-	vkFreeMemory(device, indexBufferMemory, nullptr);
+	vkDestroyBuffer(device, modelVertexBuffer, nullptr);
+	vkFreeMemory(device, modelVertexBufferMemory, nullptr);
 
-	vkDestroyBuffer(device, vertexBuffer, nullptr);
-	vkFreeMemory(device, vertexBufferMemory, nullptr);
+	vkDestroyBuffer(device, geometryIndexBuffer, nullptr);
+	vkFreeMemory(device, geometryIndexBufferMemory, nullptr);
+
+	vkDestroyBuffer(device, geometryVertexBuffer, nullptr);
+	vkFreeMemory(device, geometryVertexBufferMemory, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
