@@ -26,8 +26,10 @@ void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 std::vector<char> readFile(const std::string& fileName);
 
-#define  VKCREATECHECK(result, message) \
+#define  VKCHECK(result, message)		\
 if (result != VK_SUCCESS)				\
 {										\
 	throw std::runtime_error(message);	\
-}										
+}										\
+
+void vkRuntimeError(const std::string& message);

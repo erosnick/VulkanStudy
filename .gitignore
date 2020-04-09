@@ -13,7 +13,8 @@
 *.ilk
 *.db
 *.opendb
-
+*.VC.db-shm
+*.VC.db-wal
 # Precompiled Headers
 *.gch
 *.pch

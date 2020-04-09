@@ -58,3 +58,8 @@ std::vector<char> readFile(const std::string& fileName)
 
 	return buffer;
 }
+
+void vkRuntimeError(const std::string& message)
+{
+	throw std::runtime_error(message.c_str());
+}
