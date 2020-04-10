@@ -114,7 +114,7 @@ struct UniformBufferObject
 };
 
 #ifdef NDEBUG
-	const bool enableValidationLayers = false;
+	const bool enableValidationLayers = true;
 #else
 	const bool enableValidationLayers = true;
 #endif
@@ -163,14 +163,16 @@ public:
 	VkFormat findDepthFormat();
 	bool hasStencilComponent(VkFormat format);
 	void createDepthResources();
-	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+	void createColorResources();
+	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, 
+					 VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t mimLevels, VkSampleCountFlagBits numSamples = VK_SAMPLE_COUNT_1_BIT);
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void prepareTextureImages();
-	void createTextureImage(std::string filePath, VkImage& image, VkDeviceMemory& imageMemory);
-	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+	void createTextureImage(std::string filePath, VkImage& image, VkDeviceMemory& imageMemory, uint32_t& mipLevels);
+	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	void createTextureImageView();
-	void createTextureSampler(VkSampler& sampler);
+	void createTextureSampler(VkSampler& sampler, uint32_t mipLevels);
 	void prepareTextureSamples();
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
@@ -225,6 +227,8 @@ public:
 	void createCommandBuffers();
 	void createTransferCommandBuffers();
 	void createSyncObjects();
+	void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t textureWidth, int32_t textureHeight, uint32_t mipLevels);
+	VkSampleCountFlagBits getMaxUsableSampleCount();
 	void drawFrame();
 	void mainLoop();
 	void cleanup();
@@ -232,39 +236,43 @@ public:
 
 	void run();
 
+	float rotateAngle = 180.0f;
+	glm::vec3 eyePosition = glm::vec3(2.0f, 2.0f, 2.0f);
+	glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.f);;
+	glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f);
 protected:
 
 	uint32_t windowWidth;
 	uint32_t windowHeight;
 	std::string windowTitle;
-	GLFWwindow* window;
+	GLFWwindow* window = nullptr;
 
-	VkInstance instance;
-	VkDevice device;					
+	VkInstance instance = VK_NULL_HANDLE;
+	VkDevice device = VK_NULL_HANDLE;
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;	// VkPhysicalDevice会在VkInstance销毁的时候销毁。
 
-	VkDebugUtilsMessengerEXT debugMessenger;
+	VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 
-	VkQueue graphicsQueue;
-	VkQueue presentQueue;
-	VkQueue transferQueue;
-	VkSurfaceKHR surface;
-	VkSwapchainKHR swapChain;
+	VkQueue graphicsQueue = VK_NULL_HANDLE;
+	VkQueue presentQueue = VK_NULL_HANDLE;
+	VkQueue transferQueue = VK_NULL_HANDLE;
+	VkSurfaceKHR surface = VK_NULL_HANDLE;
+	VkSwapchainKHR swapChain = VK_NULL_HANDLE;
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImageView> swapChainImageViews;
 
-	VkFormat swapChainImageFormat;
-	VkExtent2D swapChainExtent;
-	VkRenderPass renderPass;
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkPipelineLayout pipelineLayout;
-	VkPipeline graphicsPipeline;
+	VkFormat swapChainImageFormat = VK_FORMAT_UNDEFINED;
+	VkExtent2D swapChainExtent = { 0, 0 };
+	VkRenderPass renderPass = VK_NULL_HANDLE;
+	VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+	VkPipeline graphicsPipeline = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
-	VkCommandPool graphicsCommandPool;
-	VkCommandPool transferCommandPool;
+	VkCommandPool graphicsCommandPool = VK_NULL_HANDLE;
+	VkCommandPool transferCommandPool = VK_NULL_HANDLE;
 	std::vector<VkCommandBuffer> commandBuffers;
-	VkSemaphore imageAvailableSemaphore;
-	VkSemaphore renderFinishedSemaphore;
+	VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
+	VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
 	// Each frame should have its own set of semaphores
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -294,42 +302,50 @@ protected:
 	std::vector<Vertex> modelVertices;
 	std::vector<uint32_t> modelIndices;
 
-	VkBuffer geometryVertexBuffer;
-	VkDeviceMemory geometryVertexBufferMemory;
+	VkBuffer geometryVertexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory geometryVertexBufferMemory = VK_NULL_HANDLE;
 
-	VkBuffer modelVertexBuffer;
-	VkDeviceMemory modelVertexBufferMemory;
+	VkBuffer modelVertexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory modelVertexBufferMemory = VK_NULL_HANDLE;
 
-	VkBuffer modelIndexBuffer;
-	VkDeviceMemory modelIndexBufferMemory;
+	VkBuffer modelIndexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory modelIndexBufferMemory = VK_NULL_HANDLE;
 
-	VkBuffer geometryIndexBuffer;
-	VkDeviceMemory geometryIndexBufferMemory;
+	VkBuffer geometryIndexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory geometryIndexBufferMemory = VK_NULL_HANDLE;
 
-	VkBuffer allInOneBuffer;
-	VkDeviceMemory allInOneBufferMemory;
+	VkBuffer allInOneBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory allInOneBufferMemory = VK_NULL_HANDLE;
 
 	// Model Vertex & Index buffer
-	VkBuffer modelAllInOneBuffer;
-	VkDeviceMemory modelAllInOneBufferMemory;
+	VkBuffer modelAllInOneBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory modelAllInOneBufferMemory = VK_NULL_HANDLE;
 
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBufferMemorys;
 
-	VkDescriptorPool descriptorPool;
+	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 	std::vector<VkDescriptorSet> descriptorSets;
 
-	VkImage geometryTextureImage;
-	VkImageView geometryTextureImageView;
-	VkSampler geometryTextureSampler;
-	VkDeviceMemory geometryTextureDeviceMemory;
+	VkImage geometryTextureImage = VK_NULL_HANDLE;
+	VkImageView geometryTextureImageView = VK_NULL_HANDLE;
+	VkSampler geometryTextureSampler = VK_NULL_HANDLE;
+	VkDeviceMemory geometryTextureDeviceMemory = VK_NULL_HANDLE;
 	
-	VkImage depthImage;
-	VkImageView depthImageView;
-	VkDeviceMemory depthImageMemory;
+	VkImage depthImage = VK_NULL_HANDLE;
+	VkImageView depthImageView = VK_NULL_HANDLE;
+	VkDeviceMemory depthImageMemory = VK_NULL_HANDLE;
 
-	VkImage modelTextureImage;
-	VkImageView modelTextureImageView;
-	VkSampler modelTextureSampler;
-	VkDeviceMemory modelTextureImageMemory;
+	VkImage modelTextureImage = VK_NULL_HANDLE;
+	VkImageView modelTextureImageView = VK_NULL_HANDLE;
+	VkSampler modelTextureSampler = VK_NULL_HANDLE;
+	VkDeviceMemory modelTextureImageMemory = VK_NULL_HANDLE;
+
+	VkImage colorImage = VK_NULL_HANDLE;
+	VkDeviceMemory colorImageMemory = VK_NULL_HANDLE;
+	VkImageView colorImageView = VK_NULL_HANDLE;
+
+	uint32_t geometryMipLevels = 0;
+	uint32_t modelMipLevels = 0;
+	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 };
