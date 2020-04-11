@@ -51,6 +51,7 @@ struct Vertex
 	glm::vec3 position;
 	glm::vec3 color;
 	glm::vec2 texCoord;
+	glm::vec3 normal;
 
 	static VkVertexInputBindingDescription getBindingDescription()
 	{
@@ -63,9 +64,9 @@ struct Vertex
 		return bindingDescription;
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescription()
+	static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescription()
 	{
-		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {};
+		std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions = {};
 
 		attributeDescriptions[0].binding = 0;
 		attributeDescriptions[0].location = 0;
@@ -82,6 +83,11 @@ struct Vertex
 		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
 		attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
 
+		attributeDescriptions[3].binding = 0;
+		attributeDescriptions[3].location = 3;
+		attributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[3].offset = offsetof(Vertex, normal);
+
 		return attributeDescriptions;
 	}
 
@@ -89,7 +95,8 @@ struct Vertex
 	{
 		return position == other.position &&
 			   color == other.color &&
-			   texCoord == other.texCoord;
+			   texCoord == other.texCoord &&
+			   normal == other.normal;
 	}
 };
 
@@ -111,6 +118,24 @@ struct UniformBufferObject
 	alignas(16) glm::mat4 model;
 	alignas(16) glm::mat4 view;
 	alignas(16) glm::mat4 projection;
+};
+
+struct LightDataBuffer
+{
+	alignas(16) glm::vec3 lightPosition;
+};
+
+struct Data
+{
+	glm::mat4 model;
+	glm::float32 furLength;
+	glm::float32 layer;
+	glm::float32 gravity;
+};
+
+struct DynamicUniformBuffer
+{
+	Data* data = nullptr;
 };
 
 #ifdef NDEBUG
@@ -170,6 +195,7 @@ public:
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void prepareTextureImages();
 	void createTextureImage(std::string filePath, VkImage& image, VkDeviceMemory& imageMemory, uint32_t& mipLevels);
+	void createCustomTextureImage(uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory, uint32_t& mipLevels);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	void createTextureImageView();
 	void createTextureSampler(VkSampler& sampler, uint32_t mipLevels);
@@ -221,9 +247,11 @@ public:
 	void prepareGeometryBuffers();
 	void prepareModelBuffers();
 	void createUniformBuffers();
+	void prepareDynamicUniformBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void updateUniformBuffer(uint32_t currentImage);
+	void setupViewport(size_t index);
 	void createCommandBuffers();
 	void createTransferCommandBuffers();
 	void createSyncObjects();
@@ -236,10 +264,10 @@ public:
 
 	void run();
 
-	float rotateAngle = 180.0f;
-	glm::vec3 eyePosition = glm::vec3(2.0f, 2.0f, 2.0f);
+	float rotateAngle = 0.0f;
+	glm::vec3 eyePosition = glm::vec3(0.0f, 0.0f, 2.0f);
 	glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.f);;
-	glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f);
+	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 protected:
 
 	uint32_t windowWidth;
@@ -266,7 +294,9 @@ protected:
 	VkRenderPass renderPass = VK_NULL_HANDLE;
 	VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
 	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+	VkPipelineLayout basicPipelineLayout = VK_NULL_HANDLE;
 	VkPipeline graphicsPipeline = VK_NULL_HANDLE;
+	VkPipeline furGraphicPipeline = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 	VkCommandPool graphicsCommandPool = VK_NULL_HANDLE;
 	VkCommandPool transferCommandPool = VK_NULL_HANDLE;
@@ -282,19 +312,19 @@ protected:
 
 	bool framebufferResized = false;
 
-	const std::vector<Vertex> geometryVertices = {
-		{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-		{{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-		{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-		{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+	std::vector<Vertex> geometryVertices = {
+		{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+		{{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+		{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
 
-		{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-		{{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-		{{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-		{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+		{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+		{{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+		{{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}}
 	};
 
-	const std::vector<uint32_t> geometryIndices = {
+	std::vector<uint32_t> geometryIndices = {
 		0, 1, 2, 2, 3, 0,
 		4, 5, 6, 6, 7, 4
 	};
@@ -324,8 +354,15 @@ protected:
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBufferMemorys;
 
+	std::vector<VkBuffer> lightDataBuffers;
+	std::vector<VkDeviceMemory> lightDataBufferMemorys;
+
+	std::vector<VkBuffer> dynamicUniformBuffers;
+	std::vector<VkDeviceMemory> dynamicUniformBufferMemorys;
+
 	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 	std::vector<VkDescriptorSet> descriptorSets;
+	std::vector<VkDescriptorSet> testDescriptorSets;
 
 	VkImage geometryTextureImage = VK_NULL_HANDLE;
 	VkImageView geometryTextureImageView = VK_NULL_HANDLE;
@@ -347,5 +384,6 @@ protected:
 
 	uint32_t geometryMipLevels = 0;
 	uint32_t modelMipLevels = 0;
+	uint32_t dynamicAlignment = 0;
 	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 };

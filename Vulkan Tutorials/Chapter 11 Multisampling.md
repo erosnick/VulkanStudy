@@ -285,4 +285,4 @@ void createGraphicsPipeline() {
 - Multiple subpasses
 - Compute shaders
 
-当前程序可以通过多种方式扩展，例如添加Blinn-Phong照明，后处理效果和阴影贴图。您应该能够从其他API的教程中了解这些效果的工作原理，因为尽管Vulkan明确明确，但许多概念仍然起作用。
+当前程序可以通过多种方式扩展，例如添加Blinn-Phong照明，后处理效果和阴影贴图。您应该能够从其他API的教程中了解这些效果的工作原理，因为尽管Vulkan很明确，但许多概念仍然起作用。
