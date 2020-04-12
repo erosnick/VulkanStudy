@@ -28,11 +28,12 @@ layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in vec3 inNormal;
 
 layout(location = 0) out vec3 fragColor;
-layout(location = 1) out vec2 fragTexCoord;
-layout(location = 2) out vec3 lightPosition;
-layout(location = 3) out vec4 worldPosition;
-layout(location = 4) out vec3 normal;
-layout(location = 5) out int layerIndex;
+layout(location = 1) out vec2 fragTexCoord1;
+layout(location = 2) out vec2 fragTexCoord2;
+layout(location = 3) out vec3 lightPosition;
+layout(location = 4) out vec4 worldPosition;
+layout(location = 5) out vec3 normal;
+layout(location = 6) out int layerIndex;
 
 float UVScale = 3.0;
 
@@ -53,10 +54,13 @@ void main()
     gl_Position = ubo.projection * ubo.view * dynamicUniformBuffer.model * vec4(position, 1.0);
 
     fragColor = inColor;
-    fragTexCoord = inTexCoord;
+    fragTexCoord1 = inTexCoord;
     lightPosition = lightDataBuffer.lightPosition;
     worldPosition = ubo.model * vec4(inPosition, 1.0);
     normal = (ubo.model * vec4(inNormal, 0.0)).xyz;
+
+    vec4 znormal = vec4(1.0, 1.0, 1.0, 0.0) - dot(vec4(normal, 0.0), vec4(0.0, 0.0, 1.0, 0.0));
+    fragTexCoord2 = inTexCoord + znormal.xy * 0.0011;
 
     layerIndex = dynamicUniformBuffer.layerIndex;
 }

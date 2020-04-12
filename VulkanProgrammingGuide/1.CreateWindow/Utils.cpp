@@ -87,3 +87,10 @@ void alignedFree(void* data)
 	free(data);
 #endif
 }
+
+const float INV_RAND_MAX = 1.0 / (RAND_MAX + 1);
+
+int randRange(int min, int max)
+{
+	return (int)(min + (max - min) * INV_RAND_MAX * rand());
+}

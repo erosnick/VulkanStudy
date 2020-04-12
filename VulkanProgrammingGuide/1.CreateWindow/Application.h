@@ -307,6 +307,7 @@ protected:
 	VkPipelineLayout basicPipelineLayout = VK_NULL_HANDLE;
 	VkPipeline graphicsPipeline = VK_NULL_HANDLE;
 	VkPipeline furGraphicPipeline = VK_NULL_HANDLE;
+	VkPipeline furShadowGraphicPipeline = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 	VkCommandPool graphicsCommandPool = VK_NULL_HANDLE;
 	VkCommandPool transferCommandPool = VK_NULL_HANDLE;

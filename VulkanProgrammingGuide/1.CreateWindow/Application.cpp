@@ -20,7 +20,7 @@ const std::string MODEL_PATH = "models/20180310_KickAir8P_UVUnwrapped_Stanford_B
 //const std::string MODEL_PATH = "models/sphere.obj";
 const std::string TEXTURE_PATH = "textures/fur-bump.gif";
 
-glm::float32 furLength = 0.01f;		// 每层之间的距离
+glm::float32 furLength = 0.02f;		// 每层之间的距离
 glm::float32 gravity = -0.01f;	
 const uint32_t LAYER_COUNT = 60;	// 减少每层之间的间隙
 uint32_t layerIndex = 0;
@@ -733,6 +733,7 @@ void Application::cleanupSwapChain()
 
 	vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
+	vkDestroyPipeline(device, furShadowGraphicPipeline, nullptr);
 	vkDestroyPipeline(device, furGraphicPipeline, nullptr);
 	vkDestroyPipelineLayout(device, basicPipelineLayout, nullptr);
 
@@ -1151,6 +1152,36 @@ void Application::createGraphicsPipeline()
 	VKCHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &furGraphicPipeline),
 		"Failed to create graphics pipeline!");
 
+	auto furShadowVertexShaderCode = readFile("shaders/spv/furShadow.vert.spv");
+	auto furShadowFragShaderCode = readFile("shaders/spv/furShadow.frag.spv");
+
+	// Shader modules
+	VkShaderModule furShadowVertexShaderModule = createShaderModule(furShadowVertexShaderCode);
+	VkShaderModule furShadowFragShaderModule = createShaderModule(furShadowFragShaderCode);
+
+	VkPipelineShaderStageCreateInfo furShadowVertexShaderStage = {};
+	furShadowVertexShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	furShadowVertexShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	furShadowVertexShaderStage.module = furShadowVertexShaderModule;
+	furShadowVertexShaderStage.pName = "main";
+
+	VkPipelineShaderStageCreateInfo furShadowFragmentShaderStage = {};
+	furShadowFragmentShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	furShadowFragmentShaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	furShadowFragmentShaderStage.module = furShadowFragShaderModule;
+	furShadowFragmentShaderStage.pName = "main";
+
+	VkPipelineShaderStageCreateInfo furShadowShaderStages[] = { furShadowVertexShaderStage, furShadowFragmentShaderStage };
+
+	//depthStencilState.depthWriteEnable = VK_FALSE;
+	//pipelineInfo.pDepthStencilState = &depthStencilState;
+	pipelineInfo.pStages = furShadowShaderStages;
+
+	VKCHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &furShadowGraphicPipeline),
+		"Failed to create graphics pipeline!");
+
+	vkDestroyShaderModule(device, furShadowFragShaderModule, nullptr);
+	vkDestroyShaderModule(device, furShadowVertexShaderModule, nullptr);
 
 	vkDestroyShaderModule(device, furFragShaderModule, nullptr);
 	vkDestroyShaderModule(device, furVertexShaderModule, nullptr);
@@ -1477,19 +1508,20 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 	//	}
 	//}
 
-	srand(28382);
-
 	float length = float(layerIndex) / LAYER_COUNT; // 0 to 1
-	length = 1 - length; // 1 to 0
+	float inverseLength = 1 - length; // 1 to 0
 	// *3 is just a value I picked by trial and error so the fur looks thick enough
 	// doesn't really need to be here though!...can be adjusted externally
-	int density = (int)(furDensity * length * 6);
+	int density = (int)(furDensity * inverseLength * 9);
 	float colorFactor = 1.0f;
 	// Alternatives for increasing density - creating different fur effects
 	// Increasing by power
 	// int density = idensity * pow(length,3);
 	// Increasing sine
 	 //int density = idensity * sin(length*(D3DX_PI/2));
+	float scale = inverseLength;
+	scale = max(scale, 0.9);
+
 	for (size_t i = 0; i < density; i++)
 	{
 		int x = rand() % width;
@@ -1498,10 +1530,10 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 		unsigned int* pointer = buffer + (y * pitch + x);
 
 		// ABGR - little endian
-		*(pointer++) = ((int)(255 * colorFactor * length) << 24) + 
-					   ((int)(255 * colorFactor) << 16) + 
-					   ((int)(255 * colorFactor) << 8) + 
-					   ((int)(255 * colorFactor) << 0);
+		*(pointer++) = ((int)(randRange(255, 255) * colorFactor * inverseLength) << 24) +
+					   ((int)(randRange(255, 255) * colorFactor * scale) << 16) +
+					   ((int)(randRange(255, 255) * colorFactor * scale) << 8) +
+					   ((int)(randRange(255, 255) * colorFactor * scale) << 0);
 	}
 
 	VkDeviceSize imageSize = bufferSize * 4;
@@ -2257,6 +2289,19 @@ void Application::createCommandBuffers()
 
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
 					pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
+			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(modelIndices.size()), 1, 0, 0, 0);
+		}
+
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, furShadowGraphicPipeline);
+
+		for (uint32_t j = 0; j < LAYER_COUNT; j++)
+		{
+			// One dynamic offset per dynamic descriptor to offset into the dynamic uniform buffer
+			// containing all model matrices
+			uint32_t dynamicOffset = j * static_cast<uint32_t>(dynamicAlignment);
+
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
+				pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
 			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(modelIndices.size()), 1, 0, 0, 0);
 		}
 
