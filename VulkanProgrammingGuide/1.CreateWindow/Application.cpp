@@ -16,12 +16,15 @@
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
-const std::string MODEL_PATH = "models/sphere.obj";
+const std::string MODEL_PATH = "models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
+//const std::string MODEL_PATH = "models/sphere.obj";
 const std::string TEXTURE_PATH = "textures/fur-bump.gif";
 
-glm::float32 furLength = 0.25f;
-glm::float32 gravity = -0.25f;
-const uint32_t OBJECT_INSTANCE = 60;
+glm::float32 furLength = 0.01f;		// 每层之间的距离
+glm::float32 gravity = -0.01f;	
+const uint32_t LAYER_COUNT = 60;	// 减少每层之间的间隙
+uint32_t layerIndex = 0;
+uint32_t furDensity = 0;
 
 Application::Application(int inWindowWidth, int inWindowHeight, const std::string title)
 	: windowWidth(inWindowWidth), 
@@ -121,23 +124,23 @@ void Application::initializeVulkan()
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
-	createDescriptorSetLayout();
-	createGraphicsPipeline();
 	createCommandPool();
+	loadModel();
+	prepareTextureImages();
+	createDescriptorSetLayout();
+	createDescriptorPool();
+	createUniformBuffers();
+	prepareDynamicUniformBuffers();
+	createTextureImageView();
+	prepareTextureSamplers();
+	createDescriptorSets();
+	createGraphicsPipeline();
 	createDepthResources();
 	createColorResources();
 	createFramebuffers();
-	prepareTextureImages();
-	createTextureImageView();
-	prepareTextureSamples();
-	loadModel();
 	//prepareVertexBufferAndIndexBuffer();
 	prepareGeometryBuffers();
 	prepareModelBuffers();
-	createUniformBuffers();
-	prepareDynamicUniformBuffers();
-	createDescriptorPool();
-	createDescriptorSets();
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -232,12 +235,12 @@ void Application::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateIn
 	createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 	createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+								 VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+								 VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 
 	createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+							 VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+							 VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 
 	createInfo.pfnUserCallback = debugCallback;
 	createInfo.pUserData = nullptr;	// Optional
@@ -744,6 +747,8 @@ void Application::cleanupSwapChain()
 
 	vkDestroySwapchainKHR(device, swapChain, nullptr);
 
+	alignedFree(dynamicUniformBuffer.data);
+
 	for (size_t i = 0; i < swapChainImages.size(); i++)
 	{
 		vkDestroyBuffer(device, dynamicUniformBuffers[i], nullptr);
@@ -929,15 +934,21 @@ void Application::createDescriptorSetLayout()
 	modelSamplerLayoutBinding.pImmutableSamplers = nullptr;
 	modelSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+	VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
+	samplerLayoutBinding.binding = 5;
+	samplerLayoutBinding.descriptorCount = 1;
+	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+	samplerLayoutBinding.pImmutableSamplers = nullptr;
+	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutBinding textureArrayLayoutBinding = {};
-	textureArrayLayoutBinding.binding = 5;
-	textureArrayLayoutBinding.descriptorCount = 2;
+	textureArrayLayoutBinding.binding = 6;
+	textureArrayLayoutBinding.descriptorCount = static_cast<uint32_t>(textures.size());
 	textureArrayLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 	textureArrayLayoutBinding.pImmutableSamplers = nullptr;
 	textureArrayLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 6> bindings = { uboLayoutBinding, lightBufferLayoutBinding, dynamicBufferLayoutBinding, geometrySamplerLayoutBinding, modelSamplerLayoutBinding, textureArrayLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 7> bindings = { uboLayoutBinding, lightBufferLayoutBinding, dynamicBufferLayoutBinding, geometrySamplerLayoutBinding, modelSamplerLayoutBinding, samplerLayoutBinding, textureArrayLayoutBinding };
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1370,11 +1381,22 @@ void Application::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t wid
 
 void Application::prepareTextureImages()
 {
-	createTextureImage("textures/texture.jpg", geometryTextureImage, geometryTextureDeviceMemory, geometryMipLevels);
+	createTextureImage("textures/texture.jpg", geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
 	createCustomTextureImage(256, 256, modelTextureImage, modelTextureImageMemory, modelMipLevels);
+
+	textures.resize(LAYER_COUNT);
+
+	for (uint32_t i = 0; i < LAYER_COUNT; i++)
+	{
+		layerIndex = i;
+		uint32_t mipLevels = 0;
+		createCustomTextureImage(2048, 2048, textures[i].image, textures[i].memory, mipLevels);
+
+		textures[i].imageView =  createImageView(textures[i].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	}
 }
 
-void Application::createTextureImage(std::string filePath, VkImage& image, VkDeviceMemory& imageMemory, uint32_t& mipLevels)
+void Application::createTextureImage(std::string filePath, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels)
 {
 	int textureWidth;
 	int textureHeight;
@@ -1416,9 +1438,15 @@ void Application::createTextureImage(std::string filePath, VkImage& image, VkDev
 
 	transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
 	copyBufferToImage(stagingBuffer, image, static_cast<uint32_t>(textureWidth), static_cast<uint32_t>(textureHeight));
-	//transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
-
-	generateMipmaps(image, VK_FORMAT_R8G8B8A8_SRGB, textureWidth, textureHeight, mipLevels);
+	
+	if (generateMip)
+	{
+		generateMipmaps(image, VK_FORMAT_R8G8B8A8_SRGB, textureWidth, textureHeight, mipLevels);
+	}
+	else
+	{
+		transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
+	}
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -1426,6 +1454,8 @@ void Application::createTextureImage(std::string filePath, VkImage& image, VkDev
 
 void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory, uint32_t& mipLevels)
 {
+	srand(383832);
+
 	size_t bufferSize = width * height;
 	size_t pitch = height;
 
@@ -1447,9 +1477,20 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 	//	}
 	//}
 
-	srand(static_cast<uint32_t>(time(nullptr)));
+	srand(28382);
 
-	for (size_t density = 0; density < 5000; density++)
+	float length = float(layerIndex) / LAYER_COUNT; // 0 to 1
+	length = 1 - length; // 1 to 0
+	// *3 is just a value I picked by trial and error so the fur looks thick enough
+	// doesn't really need to be here though!...can be adjusted externally
+	int density = (int)(furDensity * length * 6);
+	float colorFactor = 1.0f;
+	// Alternatives for increasing density - creating different fur effects
+	// Increasing by power
+	// int density = idensity * pow(length,3);
+	// Increasing sine
+	 //int density = idensity * sin(length*(D3DX_PI/2));
+	for (size_t i = 0; i < density; i++)
 	{
 		int x = rand() % width;
 		int y = rand() % height;
@@ -1457,7 +1498,10 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 		unsigned int* pointer = buffer + (y * pitch + x);
 
 		// ABGR - little endian
-		*(pointer++) = (255 << 0) + (255 << 24);
+		*(pointer++) = ((int)(255 * colorFactor * length) << 24) + 
+					   ((int)(255 * colorFactor) << 16) + 
+					   ((int)(255 * colorFactor) << 8) + 
+					   ((int)(255 * colorFactor) << 0);
 	}
 
 	VkDeviceSize imageSize = bufferSize * 4;
@@ -1468,9 +1512,9 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 	VkDeviceMemory stagingBufferMemory;
 
 	createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		stagingBuffer, stagingBufferMemory);
+							VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+							VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+							stagingBuffer, stagingBufferMemory);
 
 	void* data;
 	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
@@ -1546,10 +1590,11 @@ void Application::createTextureSampler(VkSampler& sampler, uint32_t mipLevels)
 	VKCHECK(vkCreateSampler(device, &samplerInfo, nullptr, &sampler), "Failed to create texture sampler!");
 }
 
-void Application::prepareTextureSamples()
+void Application::prepareTextureSamplers()
 {
 	createTextureSampler(geometryTextureSampler, geometryMipLevels);
 	createTextureSampler(modelTextureSampler, modelMipLevels);
+	createTextureSampler(testSampler, 1);
 }
 
 uint32_t Application::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
@@ -1743,6 +1788,8 @@ void Application::loadModel()
 			modelIndices.push_back(uniqueVertices[vertex]);
 		}
 	}
+
+	furDensity = static_cast<uint32_t>(modelVertices.size());
 }
 
 void Application::prepareVertexBufferAndIndexBuffer()
@@ -1899,7 +1946,7 @@ void Application::prepareDynamicUniformBuffers()
 		dynamicAlignment = static_cast<uint32_t>((dynamicAlignment + minAlignment - 1) & ~(minAlignment - 1));
 	}
 
-	VkDeviceSize bufferSize = dynamicAlignment * OBJECT_INSTANCE;
+	VkDeviceSize bufferSize = dynamicAlignment * LAYER_COUNT;
 
 	dynamicUniformBuffers.resize(swapChainImages.size());
 	dynamicUniformBufferMemorys.resize(swapChainImages.size());
@@ -1911,21 +1958,27 @@ void Application::prepareDynamicUniformBuffers()
 								 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 								 dynamicUniformBuffers[i], dynamicUniformBufferMemorys[i]);
 	}
+
+	dynamicUniformBuffer.data = (Data*)alignedAlloc(bufferSize, dynamicAlignment);
 }
 
 void Application::createDescriptorPool()
 {
-	std::array<VkDescriptorPoolSize, 2> poolSizes;
+	std::array<VkDescriptorPoolSize, 4> poolSizes;
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+	poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+	poolSizes[3].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	poolSizes[3].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3);
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size() * 2);
+	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size() * 4);
 
 	VKCHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool), "Failed to create descriptor pool!");
 }
@@ -1975,16 +2028,20 @@ void Application::createDescriptorSets()
 		modelImageInfo.imageView = modelTextureImageView;
 		modelImageInfo.sampler = modelTextureSampler;
 
-		std::array<VkDescriptorImageInfo,2> textureArraylImageInfos = {};
-		textureArraylImageInfos[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		textureArraylImageInfos[0].imageView = modelTextureImageView;
-		textureArraylImageInfos[0].sampler = VK_NULL_HANDLE;
+		std::array<VkDescriptorImageInfo, LAYER_COUNT> textureArrayImageInfos;
 
-		textureArraylImageInfos[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		textureArraylImageInfos[1].imageView = geometryTextureImageView;
-		textureArraylImageInfos[1].sampler = VK_NULL_HANDLE;
+		for (uint32_t i = 0; i < textures.size(); i++)
+		{
+			textureArrayImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			textureArrayImageInfos[i].imageView = textures[i].imageView;
+			textureArrayImageInfos[i].sampler = VK_NULL_HANDLE;
+		}
+
+		VkDescriptorImageInfo samplerInfo = {};
+		samplerInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		samplerInfo.sampler = testSampler;
 		
-		std::array<VkWriteDescriptorSet, 6> descriptorWrites = {};
+		std::array<VkWriteDescriptorSet, 7> descriptorWrites = {};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[0].dstSet = descriptorSets[i];
 		descriptorWrites[0].dstBinding = 0;
@@ -2029,9 +2086,17 @@ void Application::createDescriptorSets()
 		descriptorWrites[5].dstSet = descriptorSets[i];
 		descriptorWrites[5].dstBinding = 5;
 		descriptorWrites[5].dstArrayElement = 0;
-		descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		descriptorWrites[5].descriptorCount = 2;
-		descriptorWrites[5].pImageInfo = textureArraylImageInfos.data();
+		descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		descriptorWrites[5].descriptorCount = 1;
+		descriptorWrites[5].pImageInfo = &samplerInfo;
+
+		descriptorWrites[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[6].dstSet = descriptorSets[i];
+		descriptorWrites[6].dstBinding = 6;
+		descriptorWrites[6].dstArrayElement = 0;
+		descriptorWrites[6].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		descriptorWrites[6].descriptorCount = static_cast<uint32_t>(textureArrayImageInfos.size());
+		descriptorWrites[6].pImageInfo = textureArrayImageInfos.data();
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 
@@ -2082,21 +2147,18 @@ void Application::updateUniformBuffer(uint32_t currentImage)
 	memcpy_s(data, sizeof(lightDataBuffer), &lightDataBuffer, sizeof(lightDataBuffer));
 	vkUnmapMemory(device, lightDataBufferMemorys[currentImage]);
 
-	size_t bufferSize = dynamicAlignment * OBJECT_INSTANCE;
-
-	DynamicUniformBuffer dynamicUniformBuffer;
-
-	dynamicUniformBuffer.data = (Data*)alignedAlloc(bufferSize, dynamicAlignment);
-
-	for (size_t i = 0; i < OBJECT_INSTANCE; i++)
+	for (int i = 0; i < LAYER_COUNT; i++)
 	{
 		Data* dynamicData = (Data*)((uint64_t)dynamicUniformBuffer.data + dynamicAlignment * i);
 		dynamicData->model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
 
-		dynamicData->layer = (float)i / OBJECT_INSTANCE;
+		dynamicData->layer = (float)i / LAYER_COUNT;
 		dynamicData->furLength = dynamicData->layer * furLength;
 		dynamicData->gravity = gravity;
+		dynamicData->layerIndex = i;
 	}
+
+	VkDeviceSize bufferSize = dynamicAlignment * LAYER_COUNT;
 
 	vkMapMemory(device, dynamicUniformBufferMemorys[currentImage], 0, bufferSize, 0, &data);
 	memcpy_s(data, bufferSize, dynamicUniformBuffer.data, bufferSize);
@@ -2187,7 +2249,7 @@ void Application::createCommandBuffers()
 
 		vkCmdBindIndexBuffer(commandBuffers[i], modelAllInOneBuffer, offset, VK_INDEX_TYPE_UINT32);
 
-		for (uint32_t j = 0; j < OBJECT_INSTANCE; j++)
+		for (uint32_t j = 0; j < LAYER_COUNT; j++)
 		{
 			// One dynamic offset per dynamic descriptor to offset into the dynamic uniform buffer
 			// containing all model matrices
@@ -2444,6 +2506,15 @@ void Application::mainLoop()
 void Application::cleanup()
 {
 	cleanupSwapChain();
+
+	for (int i = 0; i < textures.size(); i++)
+	{
+		vkDestroyImageView(device, textures[i].imageView, nullptr);
+		vkDestroyImage(device, textures[i].image, nullptr);
+		vkFreeMemory(device, textures[i].memory, nullptr);
+	}
+
+	vkDestroySampler(device, testSampler, nullptr);
 
 	vkDestroySampler(device, modelTextureSampler, nullptr);
 	vkDestroyImageView(device, modelTextureImageView, nullptr);

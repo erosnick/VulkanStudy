@@ -11,6 +11,8 @@ layout(location = 4) in vec3 inNormal;
 
 layout(binding = 3) uniform sampler2D geometryTextureSampler;
 layout(binding = 4) uniform sampler2D modelTextureSampler;
+layout(binding = 5) uniform sampler testSampler;
+layout(binding = 6) uniform texture2D textures[8];
 
 void main()
 {
@@ -19,8 +21,8 @@ void main()
 
     float diffuse  = max(dot(normal, lightDirection), 0.0);
     // outColor = vec4(vec3(fragTexCoord.x, fragTexCoord.y, 0.0), 1.0);
-    outColor = texture(modelTextureSampler, inFragTexCoord);
+    // outColor = texture(modelTextureSampler, inFragTexCoord);
 
-    // vec3 finalColor =  inFragColor * diffuse;
-    // outColor = vec4(finalColor, 1);
+    vec3 finalColor =  inFragColor * diffuse;
+    outColor = vec4(finalColor, 1.0);
 }

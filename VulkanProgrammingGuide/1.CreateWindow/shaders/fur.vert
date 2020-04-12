@@ -19,6 +19,7 @@ layout(binding = 2) uniform DynamicUniformBuffer
     float furLength;
     float layer;
     float gravity;
+    int layerIndex;
 }dynamicUniformBuffer;
 
 layout(location = 0) in vec3 inPosition;
@@ -31,6 +32,7 @@ layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 lightPosition;
 layout(location = 3) out vec4 worldPosition;
 layout(location = 4) out vec3 normal;
+layout(location = 5) out int layerIndex;
 
 void main()
 {
@@ -41,6 +43,8 @@ void main()
     vec3 gravity = vec3(0.0, dynamicUniformBuffer.gravity, 0.0);
 
     gravity = (ubo.model * vec4(gravity, 1.0)).xyz;
+
+    // gravity = vec3(0.0, 0.0, 0.0);
     
     position += gravity * k;
 
@@ -51,4 +55,5 @@ void main()
     lightPosition = lightDataBuffer.lightPosition;
     worldPosition = ubo.model * vec4(inPosition, 1.0);
     normal = (ubo.model * vec4(inNormal, 0.0)).xyz;
+    layerIndex = dynamicUniformBuffer.layerIndex;
 }
