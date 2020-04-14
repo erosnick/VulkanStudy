@@ -23,18 +23,16 @@ void main()
 
     float diffuse  = max(dot(normal, lightDirection), 0.0);
     // outColor = vec4(vec3(fragTexCoord.x, fragTexCoord.y, 0.0), 1.0);
-    vec4 baseColor = texture(geometryTextureSampler, inFragTexCoord1);
+    vec4 baseColor = texture(sampler2D(textures[layerIndex], testSampler), inFragTexCoord1);;
     // vec4 baseColor = texture(sampler2D(textures[layerIndex], testSampler), inFragTexCoord1);
     vec4 baseColorOffset = texture(sampler2D(textures[layerIndex], testSampler), inFragTexCoord2);
 
-    baseColor.a = baseColorOffset.a;
-
-    vec4 color = baseColorOffset - baseColor;
+    vec4 color = baseColor - baseColorOffset;
 
     vec4 yuv = vec4(0.299, 0.587, 0.114, 0.0);
 
     float r = dot(yuv, color);
 
-    vec4 finalColor =  vec4(r, r, r, r);
+    vec4 finalColor =  vec4(r, r, r, r * 0.1);
     outColor = finalColor;
 }

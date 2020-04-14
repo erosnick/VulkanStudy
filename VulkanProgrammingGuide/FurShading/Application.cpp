@@ -1,12 +1,12 @@
-#include "Application.h"
 #include "Utils.h"
+#include "Application.h"
 #include <iostream>
 #include <set>
 #include <algorithm>
 #include <chrono>
+#include <unordered_map>
 #include <GLFW/glfw3native.h>
 #include <glm/gtc/matrix_transform.hpp>
-#include <unordered_map>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
@@ -54,6 +54,7 @@ void Application::createWindow(int inWindowWidth, int inWindowHeight, const std:
 
 void Application::framebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
+	MessageBox(nullptr, L"framebufferResizeCallback", L"Notice", MB_OK);
 	auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
 	app->framebufferResized = true;
 }
@@ -668,11 +669,11 @@ VkExtent2D Application::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabil
 		VkExtent2D actualExtent = { static_cast<uint32_t>(windowWidth),
 									static_cast<uint32_t>(windowHeight) };
 
-		actualExtent.width = max(capabilities.minImageExtent.width,
-							 min(capabilities.maxImageExtent.width, actualExtent.width));
+		actualExtent.width = std::max(capabilities.minImageExtent.width,
+							 std::min(capabilities.maxImageExtent.width, actualExtent.width));
 
-		actualExtent.height = max(capabilities.minImageExtent.height,
-							  min(capabilities.maxImageExtent.height, actualExtent.height));
+		actualExtent.height = std::max(capabilities.minImageExtent.height,
+							  std::min(capabilities.maxImageExtent.height, actualExtent.height));
 
 		return actualExtent;
 	}
@@ -1157,8 +1158,20 @@ void Application::createGraphicsPipeline()
 	furShaderStages[0] = loadShader("shaders/spv/fur.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 	furShaderStages[1] = loadShader("shaders/spv/fur.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-	//depthStencilState.depthWriteEnable = VK_FALSE;
-	//pipelineInfo.pDepthStencilState = &depthStencilState;
+	colorBlendAttachmentState.blendEnable = VK_TRUE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendingState.pAttachments = &colorBlendAttachmentState;
+	pipelineInfo.pColorBlendState = &colorBlendingState;
+
+	// DO NOT write to the depth buffer, cause fur and fur shadow has the same depth!
+	depthStencilState.depthWriteEnable = VK_FALSE;			
+	pipelineInfo.pDepthStencilState = &depthStencilState;
+
 	pipelineInfo.pStages = furShaderStages.data();
 
 	VKCHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &furGraphicPipeline),
@@ -1169,8 +1182,20 @@ void Application::createGraphicsPipeline()
 	furShadowShaderStages[0] = loadShader("shaders/spv/furShadow.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 	furShadowShaderStages[1] = loadShader("shaders/spv/furShadow.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-	//depthStencilState.depthWriteEnable = VK_FALSE;
-	//pipelineInfo.pDepthStencilState = &depthStencilState;
+	colorBlendAttachmentState.blendEnable = VK_TRUE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendingState.pAttachments = &colorBlendAttachmentState;
+	pipelineInfo.pColorBlendState = &colorBlendingState;
+
+	// Now we should write fur shadow to the depth buffer.
+	depthStencilState.depthWriteEnable = VK_TRUE;
+	pipelineInfo.pDepthStencilState = &depthStencilState;
+
 	pipelineInfo.pStages = furShadowShaderStages.data();
 
 	VKCHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &furShadowGraphicPipeline),
@@ -1416,7 +1441,7 @@ void Application::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t wid
 void Application::prepareTextureImages()
 {
 	createTextureImage("textures/bunnystanford_res1_UVmapping3072_g005c.jpg", geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
-	createCustomTextureImage(256, 256, modelTextureImage, modelTextureImageMemory, modelMipLevels);
+	createCustomTextureImage(2048, 2048, modelTextureImage, modelTextureImageMemory, false, modelMipLevels);
 
 	textures.resize(LAYER_COUNT);
 
@@ -1424,9 +1449,8 @@ void Application::prepareTextureImages()
 	{
 		layerIndex = i;
 		uint32_t mipLevels = 0;
-		createCustomTextureImage(2048, 2048, textures[i].image, textures[i].memory, mipLevels);
-
-		textures[i].imageView =  createImageView(textures[i].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+		createCustomTextureImage(2048, 2048, textures[i].image, textures[i].memory, false, mipLevels);
+		textures[i].imageView =  createImageView(textures[i].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 	}
 }
 
@@ -1440,7 +1464,7 @@ void Application::createTextureImage(std::string filePath, VkImage& image, VkDev
 
 	VkDeviceSize imageSize = textureWidth * textureHeight * 4;
 
-	mipLevels = static_cast<uint32_t>(std::floor(std::log2(max(textureWidth, textureHeight)))) + 1;
+	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(textureWidth, textureHeight)))) + 1;
 
 	if (!pixels)
 	{
@@ -1486,7 +1510,7 @@ void Application::createTextureImage(std::string filePath, VkImage& image, VkDev
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory, uint32_t& mipLevels)
+void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels)
 {
 	srand(383832);
 
@@ -1494,6 +1518,8 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 	size_t pitch = height;
 
 	unsigned int* buffer = new unsigned int[bufferSize];
+
+	size_t size = sizeof(buffer);
 
 	memset(buffer, 0, bufferSize * 4);
 
@@ -1523,7 +1549,7 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 	// Increasing sine
 	 //int density = idensity * sin(length*(D3DX_PI/2));
 	float scale = inverseLength;
-	scale = max(scale, 0.9);
+	scale = std::max(scale, 0.9f);
 
 	for (size_t i = 0; i < density; i++)
 	{
@@ -1541,7 +1567,7 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 
 	VkDeviceSize imageSize = bufferSize * 4;
 
-	mipLevels = static_cast<uint32_t>(std::floor(std::log2(max(width, height)))) + 1;
+	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1559,18 +1585,24 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 	delete[] buffer;
 
 	createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB,
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-		VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-		VK_IMAGE_USAGE_SAMPLED_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		image, imageMemory, mipLevels);
+							   VK_IMAGE_TILING_OPTIMAL,
+							   VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+							   VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+							   VK_IMAGE_USAGE_SAMPLED_BIT,
+							   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+							   image, imageMemory, mipLevels);
 
 	transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
 	copyBufferToImage(stagingBuffer, image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-	//transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
 
-	generateMipmaps(image, VK_FORMAT_R8G8B8A8_SRGB, width, height, mipLevels);
+	if (generateMip)
+	{
+		generateMipmaps(image, VK_FORMAT_R8G8B8A8_SRGB, width, height, mipLevels);
+	}
+	else
+	{
+		transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
+	}
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -2286,13 +2318,14 @@ void Application::createCommandBuffers()
 		uint32_t dynamicOffset = 0;
 
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-			pipelineLayout, 0, 1, &testDescriptorSets[i], 1, &dynamicOffset);
+								pipelineLayout, 0, 1, &testDescriptorSets[i], 1, &dynamicOffset);
 
+		// Draw origin bunny.
 		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(geometryIndices.size()), 1, 0, 0, 0);
 
-		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, normalDebugGraphicPipeline);
+		//vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, normalDebugGraphicPipeline);
 
-		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(geometryIndices.size()), 1, 0, 0, 0);
+		//vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(geometryIndices.size()), 1, 0, 0, 0);
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, furGraphicPipeline);
 
@@ -2303,7 +2336,8 @@ void Application::createCommandBuffers()
 		offset = sizeof(modelVertices[0]) * modelVertices.size();
 
 		vkCmdBindIndexBuffer(commandBuffers[i], modelAllInOneBuffer, offset, VK_INDEX_TYPE_UINT32);
-
+		
+		// Draw fur shells
 		for (uint32_t j = 0; j < LAYER_COUNT; j++)
 		{
 			// One dynamic offset per dynamic descriptor to offset into the dynamic uniform buffer
@@ -2311,20 +2345,23 @@ void Application::createCommandBuffers()
 			uint32_t dynamicOffset = j * static_cast<uint32_t>(dynamicAlignment);
 
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-					pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
+									pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
+
 			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(modelIndices.size()), 1, 0, 0, 0);
 		}
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, furShadowGraphicPipeline);
 
+		// Draw fur shadow
 		for (uint32_t j = 0; j < LAYER_COUNT; j++)
 		{
 			// One dynamic offset per dynamic descriptor to offset into the dynamic uniform buffer
 			// containing all model matrices
 			uint32_t dynamicOffset = j * static_cast<uint32_t>(dynamicAlignment);
 
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-				pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, 
+								    pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
+
 			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(modelIndices.size()), 1, 0, 0, 0);
 		}
 
@@ -2547,6 +2584,8 @@ void Application::drawFrame()
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
 	{
+		std::cout << "Result:" << framebufferResized << std::endl;
+		MessageBox(nullptr, L"VK_ERROR_OUT_OF_DATE_KHR", L"Error", MB_OK);
 		framebufferResized = false;
 		recreateSwapChain();
 	}
@@ -2647,6 +2686,7 @@ Application::~Application()
 void Application::run()
 {
 	createWindow(windowWidth, windowHeight, windowTitle);
+
 	initializeVulkan();
 	mainLoop();
 }

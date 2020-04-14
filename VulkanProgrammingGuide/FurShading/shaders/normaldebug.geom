@@ -3,10 +3,11 @@
 layout (triangles) in;
 layout (line_strip, max_vertices = 6) out;
 
-layout (binding = 1) uniform UBO 
+layout (binding = 1) uniform UniformBufferObject 
 {
-	mat4 projection;
-	mat4 model;
+    mat4 model;
+    mat4 view;
+    mat4 projection;
 } ubo;
 
 layout (location = 0) in vec3 inNormal[];

@@ -1,5 +1,10 @@
 #pragma once
 
+#include <string>
+#include <vector>
+#include <optional>
+#include <array>
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -10,11 +15,6 @@
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/gtx/hash.hpp>
-
-#include <string>
-#include <vector>
-#include <optional>
-#include <array>
 
 struct QueueFamilyIndices
 {
@@ -205,7 +205,7 @@ public:
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void prepareTextureImages();
 	void createTextureImage(std::string filePath, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels);
-	void createCustomTextureImage(uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory, uint32_t& mipLevels);
+	void createCustomTextureImage(uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	void createTextureImageView();
 	void createTextureSampler(VkSampler& sampler, uint32_t mipLevels);
@@ -276,7 +276,7 @@ public:
 
 	float rotateAngle = 0.0f;
 	const float cameraSpeed = 0.01f;
-	glm::vec3 eyePosition = glm::vec3(0.0f, 0.0f, 1.0f);
+	glm::vec3 eyePosition = glm::vec3(0.0f, 0.0f, 0.75f);
 	glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.f);;
 	glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 	DynamicUniformBuffer dynamicUniformBuffer;

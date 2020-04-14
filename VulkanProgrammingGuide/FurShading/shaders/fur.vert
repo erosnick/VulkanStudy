@@ -55,7 +55,7 @@ void main()
     fragColor = inColor;
     fragTexCoord = inTexCoord * UVScale;
     lightPosition = lightDataBuffer.lightPosition;
-    worldPosition = ubo.model * vec4(inPosition, 1.0);
+    worldPosition = ubo.model * vec4(position, 1.0);
     normal = (ubo.model * vec4(inNormal, 0.0)).xyz;
 
     layerIndex = dynamicUniformBuffer.layerIndex;

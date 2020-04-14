@@ -58,7 +58,7 @@ void main()
 
     vec4 znormal = vec4(1.0, 1.0, 1.0, 0.0) - dot(vec4(normal, 0.0), vec4(0.0, 0.0, 1.0, 0.0));
 
-    fragTexCoord2 = inTexCoord + znormal.xy * 0.0011;
+    fragTexCoord2 = inTexCoord + znormal.xy * 0.001;
     lightPosition = lightDataBuffer.lightPosition;
     worldPosition = ubo.model * vec4(inPosition, 1.0);
     normal = (ubo.model * vec4(inNormal, 0.0)).xyz;

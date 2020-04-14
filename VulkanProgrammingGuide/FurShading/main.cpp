@@ -2,7 +2,7 @@
 
 int main()
 {
-	Application app(1280, 960, "Vulkan Window");
+	Application app(1440, 1080, "Vulkan Window");
 
 	app.run();
 
