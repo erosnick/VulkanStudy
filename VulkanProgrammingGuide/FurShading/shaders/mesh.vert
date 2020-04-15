@@ -17,7 +17,13 @@ layout(binding = 3) uniform DynamicUniformBuffer
 {
     mat4 model;
     float furLength;
+    float layer;
+    float gravity;
+    int layerIndex;
+    float time;
 }dynamicUniformBuffer;
+
+float uvScale = 1.0;
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor;
@@ -29,13 +35,16 @@ layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out vec3 lightPosition;
 layout(location = 3) out vec4 worldPosition;
 layout(location = 4) out vec3 normal;
+layout(location = 5) out float time;
 
 void main()
 {
+    vec3 position = inPosition + inNormal * dynamicUniformBuffer.time * 0.1;
     gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPosition, 1.0);
     fragColor = inColor;
-    fragTexCoord = inTexCoord;
+    fragTexCoord = inTexCoord * uvScale;
     lightPosition = lightDataBuffer.lightPosition;
     worldPosition = ubo.model * vec4(inPosition, 1.0);
     normal = (ubo.model * vec4(inNormal, 0.0)).xyz;
+    time = dynamicUniformBuffer.time;
 }

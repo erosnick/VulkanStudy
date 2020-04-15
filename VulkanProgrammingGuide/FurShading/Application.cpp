@@ -16,13 +16,14 @@
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
-const std::string MODEL_PATH = "models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
+//const std::string MODEL_PATH = "models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
 //const std::string MODEL_PATH = "models/sphere.obj";
+const std::string MODEL_PATH = "models/cube.obj";
 const std::string TEXTURE_PATH = "textures/fur-bump.gif";
 
 glm::float32 furLength = 0.02f;		// 每层之间的距离
 glm::float32 gravity = -0.01f;	
-const uint32_t LAYER_COUNT = 60;	// 减少每层之间的间隙
+const uint32_t LAYER_COUNT = 55;	// 减少每层之间的间隙
 uint32_t layerIndex = 0;
 uint32_t furDensity = 0;
 
@@ -54,7 +55,7 @@ void Application::createWindow(int inWindowWidth, int inWindowHeight, const std:
 
 void Application::framebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
-	MessageBox(nullptr, L"framebufferResizeCallback", L"Notice", MB_OK);
+	//MessageBox(NULL, L"framebufferResizeCallback", L"Notice", MB_OK);
 	auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
 	app->framebufferResized = true;
 }
@@ -1169,8 +1170,8 @@ void Application::createGraphicsPipeline()
 	pipelineInfo.pColorBlendState = &colorBlendingState;
 
 	// DO NOT write to the depth buffer, cause fur and fur shadow has the same depth!
-	depthStencilState.depthWriteEnable = VK_FALSE;			
-	pipelineInfo.pDepthStencilState = &depthStencilState;
+	//depthStencilState.depthWriteEnable = VK_FALSE;			
+	//pipelineInfo.pDepthStencilState = &depthStencilState;
 
 	pipelineInfo.pStages = furShaderStages.data();
 
@@ -1193,8 +1194,8 @@ void Application::createGraphicsPipeline()
 	pipelineInfo.pColorBlendState = &colorBlendingState;
 
 	// Now we should write fur shadow to the depth buffer.
-	depthStencilState.depthWriteEnable = VK_TRUE;
-	pipelineInfo.pDepthStencilState = &depthStencilState;
+	//depthStencilState.depthWriteEnable = VK_TRUE;
+	//pipelineInfo.pDepthStencilState = &depthStencilState;
 
 	pipelineInfo.pStages = furShadowShaderStages.data();
 
@@ -1216,6 +1217,8 @@ void Application::createGraphicsPipeline()
 	{
 		vkDestroyShaderModule(device, shaderModule, nullptr);
 	}
+
+	shaderModules.clear();
 }
 
 void Application::createFramebuffers()
@@ -1441,7 +1444,8 @@ void Application::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t wid
 void Application::prepareTextureImages()
 {
 	createTextureImage("textures/bunnystanford_res1_UVmapping3072_g005c.jpg", geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
-	createCustomTextureImage(2048, 2048, modelTextureImage, modelTextureImageMemory, false, modelMipLevels);
+	//createTextureImage("textures/bunnystanford_res1_UVmapping3072_g005c.jpg", modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
+	createCheckerboardTextureImage(2048, 2048, modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
 
 	textures.resize(LAYER_COUNT);
 
@@ -1449,7 +1453,9 @@ void Application::prepareTextureImages()
 	{
 		layerIndex = i;
 		uint32_t mipLevels = 0;
+
 		createCustomTextureImage(2048, 2048, textures[i].image, textures[i].memory, false, mipLevels);
+
 		textures[i].imageView =  createImageView(textures[i].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 	}
 }
@@ -1510,31 +1516,47 @@ void Application::createTextureImage(std::string filePath, VkImage& image, VkDev
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels)
+void Application::createCustomTextureImage(uint32_t textureWidth, uint32_t textureHeight, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels)
 {
 	srand(383832);
 
-	size_t bufferSize = width * height;
-	size_t pitch = height;
+	size_t bufferSize = textureWidth * textureHeight;
+	size_t pitch = textureHeight;
 
 	unsigned int* buffer = new unsigned int[bufferSize];
 
-	size_t size = sizeof(buffer);
-
 	memset(buffer, 0, bufferSize * 4);
 
-	unsigned int* pointer = buffer;
-
-	//for (size_t height = 0; height < 256; height++)
+	//for (size_t i = 0; i < 5000; i++)
 	//{
-	//	for (size_t width = 0; width < 256; width++)
-	//	{
-	//		*(pointer) = 255;
+	//	int x = (rand() % textureWidth);
+	//	int y = (rand() % textureHeight);
+
+	//	unsigned char* pointer = buffer + (y * pitch + x * 4);
+
+	//	*(pointer) = 0;
+	//	*(++pointer) = 255;
+	//	*(++pointer) = 0;
+	//	*(++pointer) = 255;
+	//}
+
+	//unsigned char* pointer = buffer;
+
+	//for (size_t height = 0; height < textureHeight; height++)
+	//{
+	//	//for (size_t width = 0; width < textureWidth; width++)
+	//	//{
+	//		int x = (rand() % textureWidth);
+	//		int y = (rand() % textureHeight);
+
+	//		unsigned char* pointer = buffer + (y * pitch + x * 4);
+
+	//		*(pointer) = 0;
+	//		*(++pointer) = 255;
 	//		*(++pointer) = 0;
-	//		*(++pointer) = 0;
-	//		*(++pointer) = 0;
+	//		*(++pointer) = 255;
 	//		pointer++;
-	//	}
+	//	//}
 	//}
 
 	float length = float(layerIndex) / LAYER_COUNT; // 0 to 1
@@ -1553,21 +1575,21 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 
 	for (size_t i = 0; i < density; i++)
 	{
-		int x = rand() % width;
-		int y = rand() % height;
+		int x = rand() % textureWidth;
+		int y = rand() % textureHeight;
 
 		unsigned int* pointer = buffer + (y * pitch + x);
 
 		// ABGR - little endian
-		*(pointer++) = ((int)(randRange(255, 255) * colorFactor * inverseLength) << 24) +
-					   ((int)(randRange(255, 255) * colorFactor * scale) << 16) +
-					   ((int)(randRange(255, 255) * colorFactor * scale) << 8) +
-					   ((int)(randRange(255, 255) * colorFactor * scale) << 0);
+		*(pointer) = ((int)(randRange(255, 255) * colorFactor * inverseLength) << 24) +
+					 ((int)(randRange(0, 255) * colorFactor * scale) << 16) +
+					 ((int)(randRange(0, 255) * colorFactor * scale) << 8) +
+					 ((int)(randRange(0, 255) * colorFactor * scale) << 0);
 	}
 
 	VkDeviceSize imageSize = bufferSize * 4;
 
-	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(textureWidth, textureHeight)))) + 1;
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
@@ -1584,7 +1606,119 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 
 	delete[] buffer;
 
-	createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB,
+	createImage(textureWidth, textureHeight, VK_FORMAT_R8G8B8A8_SRGB,
+							  VK_IMAGE_TILING_OPTIMAL,
+							  VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+							  VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+							  VK_IMAGE_USAGE_SAMPLED_BIT,
+							  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+							  image, imageMemory, mipLevels);
+
+	transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
+	copyBufferToImage(stagingBuffer, image, static_cast<uint32_t>(textureWidth), static_cast<uint32_t>(textureHeight));
+
+	if (generateMip)
+	{
+		generateMipmaps(image, VK_FORMAT_R8G8B8A8_SRGB, textureWidth, textureHeight, mipLevels);
+	}
+	else
+	{
+		transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels);
+	}
+
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+
+void Application::createCheckerboardTextureImage(uint32_t textureWidth, uint32_t textureHeight, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels)
+{
+	size_t bufferSize = textureWidth * textureHeight;
+	size_t pitch = textureHeight;
+
+	uint32_t* buffer = new uint32_t[bufferSize];
+
+	size_t size = sizeof(buffer);
+
+	memset(buffer, 0, bufferSize * 4);
+
+	uint32_t* pointer = buffer;
+
+	//for (size_t height = 0; height < 256; height++)
+	//{
+	//	for (size_t width = 0; width < 256; width++)
+	//	{
+	//		*(pointer) = 255;
+	//		*(++pointer) = 0;
+	//		*(++pointer) = 0;
+	//		*(++pointer) = 0;
+	//		pointer++;
+	//	}
+	//}
+
+	uint32_t black = (randRange(255, 255) << 24) +
+					 (randRange(0, 0) << 16) +
+					 (randRange(0, 0) << 8) +
+					 (randRange(0, 0) << 0);
+
+	uint32_t white = (randRange(255, 255) << 24) +
+				     (randRange(255, 255) << 16) +
+				     (randRange(255, 255) << 8) +
+				     (randRange(255, 255) << 0);
+
+	uint32_t cornFlower = (255 << 24) +
+						  (237 << 16) +
+						  (149 << 8) +
+						  (100 << 0);
+
+	bool blackBlock = true;
+
+	for (size_t height = 0; height < textureHeight; height ++)
+	{
+		for (size_t width = 0; width < textureWidth; width += 32)
+		{
+			if (height < textureHeight / 2)
+			{
+				for (size_t i = 0; i < 32; i++)
+				{
+					if (blackBlock)
+					{
+						*(pointer++) = cornFlower;
+					}
+					else
+					{
+						*(pointer++) = white;
+					}
+				}
+
+				blackBlock = !blackBlock;
+			}
+			else
+			{
+				*(pointer++) = white;
+			}
+		}
+	}
+
+	VkDeviceSize imageSize = bufferSize * 4;
+
+	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(textureWidth, textureHeight)))) + 1;
+
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+
+	createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+						    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+						    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+						    stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+	memcpy_s(data, static_cast<size_t>(imageSize), buffer, static_cast<size_t>(imageSize));
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	delete[] buffer;
+
+	createImage(textureWidth, textureHeight, VK_FORMAT_R8G8B8A8_SRGB,
 							   VK_IMAGE_TILING_OPTIMAL,
 							   VK_IMAGE_USAGE_TRANSFER_DST_BIT |
 							   VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
@@ -1593,11 +1727,11 @@ void Application::createCustomTextureImage(uint32_t width, uint32_t height, VkIm
 							   image, imageMemory, mipLevels);
 
 	transitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
-	copyBufferToImage(stagingBuffer, image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+	copyBufferToImage(stagingBuffer, image, static_cast<uint32_t>(textureWidth), static_cast<uint32_t>(textureHeight));
 
 	if (generateMip)
 	{
-		generateMipmaps(image, VK_FORMAT_R8G8B8A8_SRGB, width, height, mipLevels);
+		generateMipmaps(image, VK_FORMAT_R8G8B8A8_SRGB, textureWidth, textureHeight, mipLevels);
 	}
 	else
 	{
@@ -2180,20 +2314,20 @@ void Application::createDescriptorSets()
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 
-		modelImageInfo.imageView = geometryTextureImageView;
-		modelImageInfo.sampler = geometryTextureSampler;
+		//modelImageInfo.imageView = geometryTextureImageView;
+		//modelImageInfo.sampler = geometryTextureSampler;
 
-		descriptorWrites[0].dstSet = testDescriptorSets[i];
-		descriptorWrites[1].dstSet = testDescriptorSets[i];
-		descriptorWrites[2].dstSet = testDescriptorSets[i];
-		descriptorWrites[3].dstSet = testDescriptorSets[i];
-		descriptorWrites[4].dstSet = testDescriptorSets[i];
-		descriptorWrites[4].pImageInfo = &modelImageInfo;
-		descriptorWrites[5].dstSet = testDescriptorSets[i];
-		descriptorWrites[6].dstSet = testDescriptorSets[i];
-		descriptorWrites[7].dstSet = testDescriptorSets[i];
+		//descriptorWrites[0].dstSet = testDescriptorSets[i];
+		//descriptorWrites[1].dstSet = testDescriptorSets[i];
+		//descriptorWrites[2].dstSet = testDescriptorSets[i];
+		//descriptorWrites[3].dstSet = testDescriptorSets[i];
+		//descriptorWrites[4].dstSet = testDescriptorSets[i];
+		//descriptorWrites[4].pImageInfo = &modelImageInfo;
+		//descriptorWrites[5].dstSet = testDescriptorSets[i];
+		//descriptorWrites[6].dstSet = testDescriptorSets[i];
+		//descriptorWrites[7].dstSet = testDescriptorSets[i];
 
-		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+		//vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 }
 
@@ -2205,7 +2339,9 @@ void Application::updateUniformBuffer(uint32_t currentImage)
 
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-	time = 1.0f;
+	float sinValue = sinf(time);
+
+	//std::cout << sinValue << std::endl;
 
 	UniformBufferObject ubo = {};
 
@@ -2239,6 +2375,7 @@ void Application::updateUniformBuffer(uint32_t currentImage)
 		dynamicData->furLength = dynamicData->layer * furLength;
 		dynamicData->gravity = gravity;
 		dynamicData->layerIndex = i;
+		dynamicData->time = sinf(time * 2.0f);
 	}
 
 	VkDeviceSize bufferSize = dynamicAlignment * LAYER_COUNT;
@@ -2293,7 +2430,7 @@ void Application::createCommandBuffers()
 		renderPassInfo.renderArea.extent = swapChainExtent;
 
 		std::array<VkClearValue, 2> clearValues = {};
-		clearValues[0] = Color::CornFlower;
+		clearValues[0] = Color::Black;
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
@@ -2318,7 +2455,7 @@ void Application::createCommandBuffers()
 		uint32_t dynamicOffset = 0;
 
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-								pipelineLayout, 0, 1, &testDescriptorSets[i], 1, &dynamicOffset);
+								pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
 
 		// Draw origin bunny.
 		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(geometryIndices.size()), 1, 0, 0, 0);
@@ -2347,23 +2484,23 @@ void Application::createCommandBuffers()
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
 									pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
 
-			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(modelIndices.size()), 1, 0, 0, 0);
+			//vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(modelIndices.size()), 1, 0, 0, 0);
 		}
 
-		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, furShadowGraphicPipeline);
+		//vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, furShadowGraphicPipeline);
 
 		// Draw fur shadow
-		for (uint32_t j = 0; j < LAYER_COUNT; j++)
-		{
-			// One dynamic offset per dynamic descriptor to offset into the dynamic uniform buffer
-			// containing all model matrices
-			uint32_t dynamicOffset = j * static_cast<uint32_t>(dynamicAlignment);
+		//for (uint32_t j = 0; j < LAYER_COUNT; j++)
+		//{
+		//	// One dynamic offset per dynamic descriptor to offset into the dynamic uniform buffer
+		//	// containing all model matrices
+		//	uint32_t dynamicOffset = j * static_cast<uint32_t>(dynamicAlignment);
 
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, 
-								    pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
+		//	vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, 
+		//						    pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
 
-			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(modelIndices.size()), 1, 0, 0, 0);
-		}
+			//vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(modelIndices.size()), 1, 0, 0, 0);
+		//}
 
 		vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -2585,7 +2722,7 @@ void Application::drawFrame()
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
 	{
 		std::cout << "Result:" << framebufferResized << std::endl;
-		MessageBox(nullptr, L"VK_ERROR_OUT_OF_DATE_KHR", L"Error", MB_OK);
+		//MessageBox(nullptr, L"VK_ERROR_OUT_OF_DATE_KHR", L"Error", MB_OK);
 		framebufferResized = false;
 		recreateSwapChain();
 	}

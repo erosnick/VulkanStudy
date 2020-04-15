@@ -9,6 +9,8 @@
 namespace Color
 {
 	const  VkClearValue CornFlower = { 1.0f / 255 * 100.0f, 1.0f / 255 * 149.0f, 1.0f / 255 * 237.0f };
+	const  VkClearValue White = { 1.0f, 1.0f, 1.0f };
+	const  VkClearValue Black = { 0.0f, 0.0f, 0.0f };
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(

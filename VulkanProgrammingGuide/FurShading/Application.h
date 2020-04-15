@@ -132,6 +132,7 @@ struct Data
 	glm::float32 layer;
 	glm::float32 gravity;
 	glm::int32 layerIndex;
+	glm::float32 time;
 };
 
 struct DynamicUniformBuffer
@@ -205,7 +206,8 @@ public:
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void prepareTextureImages();
 	void createTextureImage(std::string filePath, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels);
-	void createCustomTextureImage(uint32_t width, uint32_t height, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels);
+	void createCustomTextureImage(uint32_t textureWidth, uint32_t textureHeight, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels);
+	void createCheckerboardTextureImage(uint32_t textureWidth, uint32_t textureHeight, VkImage& image, VkDeviceMemory& imageMemory, bool generateMip, uint32_t& mipLevels);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	void createTextureImageView();
 	void createTextureSampler(VkSampler& sampler, uint32_t mipLevels);

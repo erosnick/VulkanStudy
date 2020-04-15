@@ -20,6 +20,7 @@ layout(binding = 3) uniform DynamicUniformBuffer
     float layer;
     float gravity;
     int layerIndex;
+    float time;
 }dynamicUniformBuffer;
 
 layout(location = 0) in vec3 inPosition;

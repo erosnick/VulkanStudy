@@ -8,6 +8,7 @@ layout(location = 1) in vec2 inFragTexCoord;
 layout(location = 2) in vec3 inLightPosition;
 layout(location = 3) in vec4 inWorldPosition;
 layout(location = 4) in vec3 inNormal;
+layout(location = 5) in float time;
 
 layout(binding = 4) uniform sampler2D geometryTextureSampler;
 layout(binding = 5) uniform sampler2D modelTextureSampler;
@@ -21,8 +22,10 @@ void main()
 
     float diffuse  = max(dot(normal, lightDirection), 0.0);
     // outColor = vec4(vec3(fragTexCoord.x, fragTexCoord.y, 0.0), 1.0);
-    outColor = texture(modelTextureSampler, inFragTexCoord);
+    vec4 textureColor = texture(modelTextureSampler, inFragTexCoord);
 
+    // textureColor.a = 1.0;
+    outColor = textureColor;// * clamp(time, 0.0, 1.0);
     // vec3 finalColor =  inFragColor * diffuse;
     // outColor = vec4(finalColor, 1.0);
 }
