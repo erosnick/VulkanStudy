@@ -18,7 +18,7 @@ const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //const std::string MODEL_PATH = "models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
 //const std::string MODEL_PATH = "models/sphere.obj";
-const std::string MODEL_PATH = "models/cube.obj";
+const std::string MODEL_PATH = "models/plane.obj";
 const std::string TEXTURE_PATH = "textures/fur-bump.gif";
 
 glm::float32 furLength = 0.02f;		// 每层之间的距离
@@ -1671,31 +1671,35 @@ void Application::createCheckerboardTextureImage(uint32_t textureWidth, uint32_t
 						  (100 << 0);
 
 	bool blackBlock = true;
+	uint32_t counter = 0;
 
 	for (size_t height = 0; height < textureHeight; height ++)
 	{
-		for (size_t width = 0; width < textureWidth; width += 32)
+		for (size_t width = 0; width < textureWidth; width ++)
 		{
-			if (height < textureHeight / 2)
+			if (height > textureHeight / 2)
 			{
-				for (size_t i = 0; i < 32; i++)
+				if (blackBlock)
 				{
-					if (blackBlock)
-					{
-						*(pointer++) = cornFlower;
-					}
-					else
-					{
-						*(pointer++) = white;
-					}
+					*(pointer++) = cornFlower;
 				}
-
-				blackBlock = !blackBlock;
+				else
+				{
+					*(pointer++) = white;
+				}
 			}
 			else
 			{
 				*(pointer++) = white;
 			}
+
+			if (counter == 32)
+			{
+				counter = 0;
+				blackBlock = !blackBlock;
+			}
+
+			counter++;
 		}
 	}
 
