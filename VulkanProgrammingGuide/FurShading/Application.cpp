@@ -17,8 +17,8 @@
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //const std::string MODEL_PATH = "models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
-//const std::string MODEL_PATH = "models/sphere.obj";
-const std::string MODEL_PATH = "models/plane.obj";
+const std::string MODEL_PATH = "models/sphere.obj";
+//const std::string MODEL_PATH = "models/plane.obj";
 const std::string TEXTURE_PATH = "textures/fur-bump.gif";
 
 glm::float32 furLength = 0.02f;		// 每层之间的距离
@@ -1671,7 +1671,8 @@ void Application::createCheckerboardTextureImage(uint32_t textureWidth, uint32_t
 						  (100 << 0);
 
 	bool blackBlock = true;
-	uint32_t counter = 0;
+	uint32_t counterX = 0;
+	uint32_t counterY = 0;
 
 	for (size_t height = 0; height < textureHeight; height ++)
 	{
@@ -1693,14 +1694,22 @@ void Application::createCheckerboardTextureImage(uint32_t textureWidth, uint32_t
 				*(pointer++) = white;
 			}
 
-			if (counter == 32)
-			{
-				counter = 0;
-				blackBlock = !blackBlock;
-			}
+			//if (counterX == 32)
+			//{
+			//	counterX = 0;
+			//	blackBlock = !blackBlock;
+			//}
 
-			counter++;
+			//counterX++;
 		}
+
+		if (counterY == 32)
+		{
+			counterY = 0;
+			blackBlock = !blackBlock;
+		}
+
+		counterY++;
 	}
 
 	VkDeviceSize imageSize = bufferSize * 4;
@@ -2343,14 +2352,12 @@ void Application::updateUniformBuffer(uint32_t currentImage)
 
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-	float sinValue = sinf(time);
-
-	//std::cout << sinValue << std::endl;
-
 	UniformBufferObject ubo = {};
 
 	glm::mat4 translate = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
-	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(rotateAngle), up) * translate;
+
+	rotation = glm::rotate(rotation, time * glm::radians(rotateAngle), up);
+	ubo.model =  rotation * translate;
 
 	ubo.view = glm::lookAt(eyePosition, center, up);
 
