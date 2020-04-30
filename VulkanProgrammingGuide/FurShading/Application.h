@@ -38,7 +38,7 @@ struct SwapChainSupportDetails
 const std::vector<const char*> validationLayers = { 
 	
 	"VK_LAYER_KHRONOS_validation",
-	"VK_LAYER_LUNARG_standard_validation",
+	//"VK_LAYER_LUNARG_standard_validation",
 	//"VK_LAYER_RENDERDOC_Capture"
 };
 
@@ -48,7 +48,7 @@ const std::vector<const char*> deviceExtensions = {
 
 struct Vertex
 {
-	glm::vec3 position;
+	glm::vec4 position;
 	glm::vec3 color;
 	glm::vec2 texCoord;
 	glm::vec3 normal;
@@ -70,7 +70,7 @@ struct Vertex
 
 		attributeDescriptions[0].binding = 0;
 		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
 		attributeDescriptions[0].offset = offsetof(Vertex, position);
 
 		attributeDescriptions[1].binding = 0;
@@ -219,6 +219,7 @@ public:
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkQueue queue, VkCommandPool commandPool);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	void loadModel();
+	void loadModel(const std::string& modelPath);
 	void createVertexBuffer(const std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory);
 	void createIndexBuffer(const std::vector<uint32_t>& indices, VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory);
 
@@ -276,8 +277,7 @@ public:
 
 	void run();
 
-	float rotateAngle = 1.0f;
-	glm::mat4 rotation = glm::mat4(1.0f);
+	float rotateAngle = 0.0f;
 	const float cameraSpeed = 0.01f;
 	glm::vec3 eyePosition = glm::vec3(0.0f, 0.0f, 0.75f);
 	glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.f);;
@@ -331,15 +331,15 @@ protected:
 	bool framebufferResized = false;
 
 	std::vector<Vertex> geometryVertices = {
-		{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
-		{{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
-		{{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-		{{-0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f, -0.5f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+		{{ 0.5f, -0.5f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+		{{ 0.5f,  0.5f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f,  0.5f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
 
-		{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
-		{{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
-		{{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-		{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}}
+		{{-0.5f, -0.5f, -0.5f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+		{{ 0.5f, -0.5f, -0.5f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+		{{ 0.5f,  0.5f, -0.5f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f,  0.5f, -0.5f, 1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}}
 	};
 
 	std::vector<uint32_t> geometryIndices = {
