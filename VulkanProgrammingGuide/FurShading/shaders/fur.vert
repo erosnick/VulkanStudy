@@ -23,7 +23,7 @@ layout(binding = 3) uniform DynamicUniformBuffer
     float time;
 }dynamicUniformBuffer;
 
-layout(location = 0) in vec3 inPosition;
+layout(location = 0) in vec4 inPosition;
 layout(location = 1) in vec3 inColor;
 layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in vec3 inNormal;
@@ -39,7 +39,7 @@ float UVScale = 1.0;
 
 void main()
 {
-    vec3 position = inPosition + inNormal * dynamicUniformBuffer.furLength;
+    vec3 position = inPosition.xyz + inNormal * dynamicUniformBuffer.furLength;
 
     float k = pow(dynamicUniformBuffer.layer, 3);
 
@@ -56,7 +56,7 @@ void main()
     fragColor = inColor;
     fragTexCoord = inTexCoord * UVScale;
     lightPosition = lightDataBuffer.lightPosition;
-    worldPosition = ubo.model * vec4(position, 1.0);
+    worldPosition = ubo.model * vec4(inPosition, 1.0);
     normal = (ubo.model * vec4(inNormal, 0.0)).xyz;
 
     layerIndex = dynamicUniformBuffer.layerIndex;
