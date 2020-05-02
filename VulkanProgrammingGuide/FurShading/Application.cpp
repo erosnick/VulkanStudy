@@ -17,8 +17,8 @@
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
-const std::string MODEL_PATH = "models/duck.obj";
-//const std::string MODEL_PATH = "models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
+//const std::string MODEL_PATH = "models/duck.obj";
+const std::string MODEL_PATH = "models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
 //const std::string MODEL_PATH = "models/plane.obj";
 const std::string TEXTURE_PATH = "textures/fur-bump.gif";
 
