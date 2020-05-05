@@ -12,8 +12,7 @@
 #include <tiny_obj_loader.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-//#include <stb_image.h>
-#include "image.h"
+#include <stb_image.h>
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -150,7 +149,7 @@ void Application::initializeVulkan()
 	createRenderPass();
 	createCommandPool();
 	//loadModel();
-	loadModel("../data/models/duck.obj");
+	loadModel("../data/models/plane.obj");
 	//loadModel(MODEL_PATH);
 	prepareTextureImages();
 	createDescriptorSetLayout();
@@ -1449,8 +1448,8 @@ void Application::prepareTextureImages()
 	//createTextureImage("textures/bunnystanford_res1_UVmapping3072_g005c.bmp", geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
 	//createTextureImage("textures/bunnystanford_res1_UVmapping3072_g005c.bmp", modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
 	createTextureImage("../data/textures/12248_Bird_v1_diff.bmp", geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
-	createTextureImage("../data/textures/12248_Bird_v1_diff.bmp", modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
-	//createCheckerboardTextureImage(2048, 2048, modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
+	//createTextureImage("../data/textures/12248_Bird_v1_diff.bmp", modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
+	createCheckerboardTextureImage(2048, 2048, modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
 
 	textures.resize(LAYER_COUNT);
 
@@ -1471,9 +1470,7 @@ void Application::createTextureImage(std::string filePath, VkImage& image, VkDev
 	int textureHeight;
 	int textureChannels;
 
-	//stbi_uc* pixels = stbi_load(filePath.c_str(), &textureWidth, &textureHeight, &textureChannels, STBI_rgb_alpha);
-
-	unsigned char* pixels = loadBMP(filePath.c_str(), &textureWidth, &textureHeight);
+	stbi_uc* pixels = stbi_load(filePath.c_str(), &textureWidth, &textureHeight, &textureChannels, STBI_rgb_alpha);
 
 	VkDeviceSize imageSize = textureWidth * textureHeight * 4;
 
@@ -1497,9 +1494,7 @@ void Application::createTextureImage(std::string filePath, VkImage& image, VkDev
 	memcpy_s(data, static_cast<size_t>(imageSize), pixels, static_cast<size_t>(imageSize));
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	//stbi_image_free(pixels);
-
-	delete[] pixels;
+	stbi_image_free(pixels);
 
 	createImage(textureWidth, textureHeight, VK_FORMAT_R8G8B8A8_SRGB, 
 											 VK_IMAGE_TILING_OPTIMAL,
@@ -1942,7 +1937,7 @@ void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSiz
 	endSingleTimeCommands(commandBuffer, transferQueue, transferCommandPool);
 }
 
-void Application::loadModel()
+void Application::loadModel(const std::string& modelPath)
 {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
@@ -1950,7 +1945,7 @@ void Application::loadModel()
 	std::string warn;
 	std::string error;
 
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, MODEL_PATH.c_str()))
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &error, modelPath.c_str()))
 	{
 		throw std::runtime_error(warn + error);
 	}
@@ -2002,267 +1997,6 @@ void Application::loadModel()
 			geometryIndices.push_back(uniqueVertices[vertex]);
 			modelIndices.push_back(uniqueVertices[vertex]);
 		}
-	}
-
-	furDensity = static_cast<uint32_t>(modelVertices.size());
-}
-
-// struct Vertex {//the definition of vertex structure
-// glm::vec3 pos;
-// glm::vec3 color;
-// glm::vec2 texCoord;
-struct data//the struct of data loading form about all vertices.
-{
-	std::vector< glm::vec3> vertex;//storage the X,Y,Z coordinations of all vertices.
-	std::vector< glm::vec3> texture;//storage the data of texture uV coordiantions of all vertices.
-	std::vector< glm::vec3> normalvector;//storage the data of normal vector X,Y,Z coordinations of all vertices.
-
-	std::vector<long> triangle_indices;//the indices of triangles which was the result after doing the segmentation on the rectange face of .obj file.
-	std::vector<long> normal_indices;//the indices of normal vector of each vertex which belong to each triangle.(it means there should be some redundancy of data).
-	std::vector<long> coordination_indices;//the indices of texture UV coordinations of each vertex which belong to each triangle.(it means there should be some redundancy of data).
-};
-
-void Application::loadModel(const std::string& modelPath) {
-	std::string line;//get the line
-	std::ifstream objfile(modelPath);//open obj file here and ready to read.
-	struct data duck;//data of duck.
-	int i = 0;
-	std::vector<long> vertex_index;//temporary vctor for storaging the index data of vertex here.
-	std::vector<long> normal_index;//temporary vctor for storaging the normal data of vertex here.
-	std::vector<long> texture_coordination_index; //temporary vctor for storaging the index data of texture coordination of vertex here.
-	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};//get rid of redundancy data here for speeding up.
-
-	while (!objfile.eof())//judge whether it become to the end of file.
-	{
-		getline(objfile, line);//resolve the data of .obj file. V, VN, VT, F.
-		if ((line[0] == 'v') && (line[1] == ' '))
-		{
-			std::string V;//get rid of useless leading character.
-			std::string X;//get string data of each line and partition by blank.
-			std::string Y;//get string data of each line and partition by blank.
-			std::string Z;//get string data of each line and partition by blank.
-			std::istringstream thisvertex(line);//
-			thisvertex >> V >> X >> Y >> Z;//
-			float temporaryX;//
-			float temporaryY;//
-			float temporaryZ;//
-			temporaryX = stof(X);//convert string X to float type.
-			temporaryY = stof(Y);//convert string X to float type.
-			temporaryZ = stof(Z);//convert string X to float type.
-			glm::vec3 temporaryfloatvertex = { temporaryX ,temporaryY ,temporaryZ };//make vec3 vector.
-			duck.vertex.push_back(temporaryfloatvertex);//load this vec3 vector into vertex vector. 
-			//cout << duck.vertex[i].x <<" "<< duck.vertex[i].y <<" "<< duck.vertex[i].z << endl;   
-		   // i = i + 1;
-		}
-		else if ((line[0] == 'v') && (line[1] == 'n'))// do the same thing such as above but for the VN data.
-		{
-			std::string VN;//get rid of useless leading character.
-			std::string NX;//get string data of each line and partition by blank.
-			std::string NY;//get string data of each line and partition by blank.
-			std::string NZ;//get string data of each line and partition by blank.
-			std::istringstream thisnormalvector(line);//
-			thisnormalvector >> VN >> NX >> NY >> NZ;//
-			float temporaryNX;//
-			float temporaryNY;//
-			float temporaryNZ;//
-			temporaryNX = stof(NX);//convert string X to float type.
-			temporaryNY = stof(NY);//convert string X to float type.
-			temporaryNZ = stof(NZ);//convert string X to float type.
-			glm::vec3 temporaryfloatvertexnormalvector = { temporaryNX,temporaryNY,temporaryNZ };//make vec3 vector.
-			duck.normalvector.push_back(temporaryfloatvertexnormalvector);//load this vec3 vector into "normal vector" vector.
-			//cout << temporaryfloatvertexnormalvector.x <<" "<< temporaryfloatvertexnormalvector.y <<" "<< temporaryfloatvertexnormalvector.z << endl;
-		   //i = i + 1;
-		   //cout << i << endl;
-		}
-		else if ((line[0] == 'v') && (line[1] == 't'))// do the same thing such as above but for the VT data.
-		{
-			std::string VT;//
-			std::string TX;//
-			std::string TY;//
-			std::string TZ;//
-			std::istringstream thistexture(line);//
-			thistexture >> VT >> TX >> TY >> TZ;//
-			float temporaryTX = 0.0f;//
-			float temporaryTY = 0.0f;//
-			float temporaryTZ = 0.0f;//
-			temporaryTX = stof(TX);//
-			temporaryTY = stof(TY);//
-
-			// 2020.3.27
-			// not all vt section has four elements
-			if (!TZ.empty())
-			{
-				temporaryTZ = stof(TZ);//
-			}
-
-			//cout << temporaryTX << " " << temporaryTY << " " << temporaryTZ << endl;
-			glm::vec3 temporaryfloattexture = { temporaryTX,temporaryTY,temporaryTZ };
-			duck.texture.push_back(temporaryfloattexture);
-			//cout << duck.texture[i].x << " " << duck.texture[i].y<<" "<< duck.texture[i].z<< endl;
-			//i = i + 1;//has test the time of circulation.
-			//cout << i << endl;
-
-		}
-		//the correctness and completeness of the data have been verified.
-		else if ((line[0] == 'f') && (line[1] == ' '))//get the rectangle face from .obj file and do the segmentation here so that we can get 2 triangles from each rectangle face.
-		{
-			std::string F;//get rid of useless leading character.
-			std::string f1;//get string data of each line and partition by blank.
-			std::string f2;//get string data of each line and partition by blank.
-			std::string f3;//get string data of each line and partition by blank.
-			std::string f4;//get string data of each line and partition by blank.
-			std::string f1v;//disassemble data
-			std::string f1vt;//disassemble data
-			std::string f1vn;//disassemble data
-			std::string f2v;//disassemble data
-			std::string f2vt;//disassemble data
-			std::string f2vn;//disassemble data
-			std::string f3v;//disassemble data
-			std::string f3vt;//disassemble data
-			std::string f3vn;//disassemble data
-			std::string f4v;//disassemble data
-			std::string f4vt;//disassemble data
-			std::string f4vn;//disassemble data
-			std::istringstream thisface(line);
-			thisface >> F >> f1 >> f2 >> f3 >> f4;//get the data as the form such as x/x/x
-			//cout << f1 << " " << f2 << " " << f3 << " " << f4 << endl;
-			replace(f1.begin(), f1.end(), '/', ' ');//replace "/" with blank
-			replace(f2.begin(), f2.end(), '/', ' ');//replace "/" with blank
-			replace(f3.begin(), f3.end(), '/', ' ');//replace "/" with blank
-			replace(f4.begin(), f4.end(), '/', ' ');//replace "/" with blank
-			std::istringstream thisf1(f1);
-			thisf1 >> f1v >> f1vt >> f1vn;//get real data
-			std::istringstream thisf2(f2);
-			thisf2 >> f2v >> f2vt >> f2vn;//get real data
-			std::istringstream thisf3(f3);
-			thisf3 >> f3v >> f3vt >> f3vn;//get real data
-			std::istringstream thisf4(f4);
-			thisf4 >> f4v >> f4vt >> f4vn;//get real data
-			//cout << f1v << " " << f1vt << " " << f1vn<<"__"<< f2v<<" "<< f2vt<<" "<< f1vn <<"__"<< f3v << " " << f3vt << " " << f3vn<<"__"<< f4v << " " << f4vt << " " << f4vn << endl;
-			long temporaryf1v = 0;
-			long temporaryf1vt = 0;
-			long temporaryf1vn = 0;
-			long temporaryf2v = 0;
-			long temporaryf2vt = 0;
-			long temporaryf2vn = 0;
-			long temporaryf3v = 0;
-			long temporaryf3vt = 0;
-			long temporaryf3vn = 0;
-			long temporaryf4v = 0;
-			long temporaryf4vt = 0;
-			long temporaryf4vn = 0;
-			//data below are all long type index which can be use for searching.
-			temporaryf1v = stol(f1v);//
-			temporaryf1vt = stol(f1vt);//
-			temporaryf1vn = stol(f1vn);//
-
-			temporaryf2v = stol(f2v);//
-			temporaryf2vt = stol(f2vt);//
-			temporaryf2vn = stol(f2vn);//
-
-			temporaryf3v = stol(f3v);//
-			temporaryf3vt = stol(f3vt);//
-			temporaryf3vn = stol(f3vn);//
-
-			// 2020.3.27
-			// not all f section has four elements.
-			if (!f4v.empty())
-			{
-				temporaryf4v = stol(f4v);//
-				vertex_index.push_back(temporaryf4v - 1);//decrease 1 for every index because it begain from 1.
-			}
-
-			if (!f4vt.empty())
-			{
-				temporaryf4vt = stol(f4vt);//
-				texture_coordination_index.push_back(temporaryf4vt - 1);//decrease 1 for every index because it begain from 1.
-			}
-
-			if (!f4vn.empty())
-			{
-				temporaryf4vn = stol(f4vn);//
-				normal_index.push_back(temporaryf4vn - 1);//decrease 1 for every index because it begain from 1.
-			}
-			//push it into temporary vctor
-			//vector<long> vertex_index;//
-			//vector<long> normal_index;
-			//vector<long> texture_coordination_index;
-			vertex_index.push_back(temporaryf1v - 1);//decrease 1 for every index because it begain from 1.
-			normal_index.push_back(temporaryf1vn - 1);//decrease 1 for every index because it begain from 1.
-			texture_coordination_index.push_back(temporaryf1vt - 1);//decrease 1 for every index because it begain from 1.
-
-			vertex_index.push_back(temporaryf2v - 1);//decrease 1 for every index because it begain from 1.
-			normal_index.push_back(temporaryf2vn - 1);//decrease 1 for every index because it begain from 1.
-			texture_coordination_index.push_back(temporaryf2vt - 1);//decrease 1 for every index because it begain from 1.
-
-			vertex_index.push_back(temporaryf3v - 1);//decrease 1 for every index because it begain from 1.
-			normal_index.push_back(temporaryf3vn - 1);//decrease 1 for every index because it begain from 1.
-			texture_coordination_index.push_back(temporaryf3vt - 1);//decrease 1 for every index because it begain from 1.
-		}//
-	}//main while close.
-	for (long i = 0; i < vertex_index.size() / 4; i++)
-	{
-		long temporary0 = i * 4 + 0;
-		long temporary1 = i * 4 + 1;
-		long temporary2 = i * 4 + 2;
-		long temporary3 = i * 4 + 3;
-		//do the segmentation on the square to 2 triangle and storage the data in duck main sapce.
-		duck.triangle_indices.push_back(vertex_index[temporary0]);//the CCW let the index of rectangle face 0 1 2 3 generate two triangles with (0, 1, 2) (2,3,0) index of rectangle face.
-		duck.triangle_indices.push_back(vertex_index[temporary1]);//
-		duck.triangle_indices.push_back(vertex_index[temporary2]);//
-
-		duck.triangle_indices.push_back(vertex_index[temporary2]);//
-		duck.triangle_indices.push_back(vertex_index[temporary3]);//
-		duck.triangle_indices.push_back(vertex_index[temporary0]);//
-
-		duck.normal_indices.push_back(normal_index[temporary0]);//
-		duck.normal_indices.push_back(normal_index[temporary1]);//
-		duck.normal_indices.push_back(normal_index[temporary2]);//
-
-		duck.normal_indices.push_back(normal_index[temporary2]);//
-		duck.normal_indices.push_back(normal_index[temporary3]);//
-		duck.normal_indices.push_back(normal_index[temporary0]);//
-
-		duck.coordination_indices.push_back(texture_coordination_index[temporary0]);//
-		duck.coordination_indices.push_back(texture_coordination_index[temporary1]);//
-		duck.coordination_indices.push_back(texture_coordination_index[temporary2]);//
-
-		duck.coordination_indices.push_back(texture_coordination_index[temporary2]);//
-		duck.coordination_indices.push_back(texture_coordination_index[temporary3]);//
-		duck.coordination_indices.push_back(texture_coordination_index[temporary0]); //
-	}
-	for (long j = 0; j < duck.triangle_indices.size(); j++)//push all the vertex attributions(position, texture coordination, normal vector coordination) data to their buffers.
-	{
-		Vertex vertex = {};
-		vertex.position = {
-			duck.vertex[duck.triangle_indices[j]].x,
-			duck.vertex[duck.triangle_indices[j]].y,
-			duck.vertex[duck.triangle_indices[j]].z,
-			1.0f
-		};
-
-		vertex.texCoord = {
-			duck.texture[duck.coordination_indices[j]].x,
-			1.0f - duck.texture[duck.coordination_indices[j]].y
-		};
-
-		vertex.normal = {
-			 duck.normalvector[duck.normal_indices[j]].x  ,
-			duck.normalvector[duck.normal_indices[j]].y,
-			duck.normalvector[duck.normal_indices[j]].z
-
-
-		};
-		//cout << vertex.normal.x << ","<< vertex.normal.y <<","<< vertex.normal.z << "," << vertex.normal.w << std::endl;
-
-		vertex.color = { 1.0f,1.0f,1.0f };//set the colour of polygon.
-		if (uniqueVertices.count(vertex) == 0)//get rid of the redundant vertex data.
-		{
-			uniqueVertices[vertex] = static_cast<uint32_t>(modelVertices.size());
-			modelVertices.push_back(vertex);
-		}
-
-		modelIndices.push_back(uniqueVertices[vertex]);
 	}
 
 	furDensity = static_cast<uint32_t>(modelVertices.size());

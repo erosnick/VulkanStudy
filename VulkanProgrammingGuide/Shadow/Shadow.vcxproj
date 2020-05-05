@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{1D7A4FB2-22D4-4B6E-85C0-77E812A2FA7E}</ProjectGuid>
+    <ProjectGuid>{C4B31EED-AD6D-46BA-BB73-45E2D7FC5468}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>CreateWindow</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
@@ -179,14 +179,12 @@
   <ItemGroup>
     <ClCompile Include="Allocator.cpp" />
     <ClCompile Include="Application.cpp" />
-    <ClCompile Include="image.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Allocator.h" />
     <ClInclude Include="Application.h" />
-    <ClInclude Include="image.h" />
     <ClInclude Include="Utils.h" />
   </ItemGroup>
   <ItemGroup>
