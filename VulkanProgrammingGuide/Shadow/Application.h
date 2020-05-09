@@ -15,6 +15,7 @@
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/gtx/hash.hpp>
+#include "VulkanUIOverlay.h"
 
 struct QueueFamilyIndices
 {
@@ -190,6 +191,8 @@ public:
 	void createImageViews();
 	VkShaderModule createShaderModule(const std::vector<char>& code);
 	void createRenderPass();
+	void createPipelineCache();
+	void prepareUIOverlay();
 	void createDescriptorSetLayout();
 	VkPipelineShaderStageCreateInfo loadShader(const std::string file, VkShaderStageFlagBits stage);
 	void createGraphicsPipeline();
@@ -276,6 +279,9 @@ public:
 
 	void run();
 
+	// Called when the UI overlay is updating, can be used to add custom elements to the overlay
+	virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay);
+
 	float rotateAngle = 0.0f;
 	const float cameraSpeed = 0.01f;
 	glm::vec3 eyePosition = glm::vec3(0.0f, 0.0f, 0.75f);
@@ -314,6 +320,7 @@ protected:
 	VkPipeline furGraphicPipeline = VK_NULL_HANDLE;
 	VkPipeline furShadowGraphicPipeline = VK_NULL_HANDLE;
 	VkPipeline normalDebugGraphicPipeline = VK_NULL_HANDLE;
+	VkPipelineCache pipelineCache = VK_NULL_HANDLE;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 	VkCommandPool graphicsCommandPool = VK_NULL_HANDLE;
 	VkCommandPool transferCommandPool = VK_NULL_HANDLE;
@@ -407,4 +414,6 @@ protected:
 	uint32_t dynamicAlignment = 0;
 	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	std::vector<VkShaderModule> shaderModules;
+
+	vks::UIOverlay uiOverlay;
 };

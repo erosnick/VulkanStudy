@@ -147,9 +147,11 @@ void Application::initializeVulkan()
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
+	createPipelineCache();
+	prepareUIOverlay();
 	createCommandPool();
 	//loadModel();
-	loadModel("../data/models/plane.obj");
+	loadModel("../data/models/duck.obj");
 	//loadModel(MODEL_PATH);
 	prepareTextureImages();
 	createDescriptorSetLayout();
@@ -758,6 +760,7 @@ void Application::cleanupSwapChain()
 
 	vkFreeCommandBuffers(device, graphicsCommandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
+	vkDestroyPipelineCache(device, pipelineCache, nullptr);
 	vkDestroyPipeline(device, normalDebugGraphicPipeline, nullptr);
 	vkDestroyPipeline(device, furShadowGraphicPipeline, nullptr);
 	vkDestroyPipeline(device, furGraphicPipeline, nullptr);
@@ -922,6 +925,25 @@ void Application::createRenderPass()
 	renderPassCreateInfo.pDependencies = &dependency;
 
 	VKCHECK(vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &renderPass), "Failed to create redner pass!");
+}
+
+void Application::createPipelineCache()
+{
+	VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+	VKCHECK(vkCreatePipelineCache(device, &pipelineCacheCreateInfo, nullptr, &pipelineCache), "Failed to create pipeline cache!");
+}
+
+void Application::prepareUIOverlay()
+{
+	uiOverlay.device = vulkanDevice;
+	uiOverlay.queue = queue;
+	uiOverlay.shaders = {
+		loadShader(getAssetPath() + "shaders/base/uioverlay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT),
+		loadShader(getAssetPath() + "shaders/base/uioverlay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT),
+	};
+	uiOverlay.prepareResources();
+	uiOverlay.preparePipeline(pipelineCache, renderPass);
 }
 
 void Application::createDescriptorSetLayout()
@@ -1448,8 +1470,8 @@ void Application::prepareTextureImages()
 	//createTextureImage("textures/bunnystanford_res1_UVmapping3072_g005c.bmp", geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
 	//createTextureImage("textures/bunnystanford_res1_UVmapping3072_g005c.bmp", modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
 	createTextureImage("../data/textures/12248_Bird_v1_diff.bmp", geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
-	//createTextureImage("../data/textures/12248_Bird_v1_diff.bmp", modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
-	createCheckerboardTextureImage(2048, 2048, modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
+	createTextureImage("../data/textures/12248_Bird_v1_diff.bmp", modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
+	//createCheckerboardTextureImage(2048, 2048, modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
 
 	textures.resize(LAYER_COUNT);
 
@@ -2834,4 +2856,9 @@ void Application::run()
 
 	initializeVulkan();
 	mainLoop();
+}
+
+void Application::OnUpdateUIOverlay(vks::UIOverlay* overlay)
+{
+
 }
