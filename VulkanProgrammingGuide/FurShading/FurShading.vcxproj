@@ -103,7 +103,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\vulkan;$(SolutionDir)External\Third-Party;$(SolutionDir)External\Third-Party\tinyobj;$(SolutionDir)External\Third-Party\stb</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)External\Third-Party\imgui;$(SolutionDir)External\vulkan;$(SolutionDir)External\Third-Party;$(SolutionDir)External\Third-Party\tinyobj;$(SolutionDir)External\Third-Party\stb</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -156,7 +156,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\vulkan;$(SolutionDir)External\Third-Party;$(SolutionDir)External\Third-Party\tinyobj;$(SolutionDir)External\Third-Party\stb</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)External\vulkan;$(SolutionDir)External\Third-Party;$(SolutionDir)External\Third-Party\tinyobj;$(SolutionDir)External\Third-Party\stb;$(SolutionDir)External\Third-Party\imgui</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -177,16 +177,27 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\External\Third-Party\imgui\imgui.cpp" />
+    <ClCompile Include="..\External\Third-Party\imgui\imgui_demo.cpp" />
+    <ClCompile Include="..\External\Third-Party\imgui\imgui_draw.cpp" />
+    <ClCompile Include="..\External\Third-Party\imgui\imgui_widgets.cpp" />
     <ClCompile Include="Allocator.cpp" />
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="image.cpp" />
+    <ClCompile Include="imgui_impl_glfw.cpp" />
+    <ClCompile Include="imgui_impl_opengl3.cpp" />
+    <ClCompile Include="imgui_impl_vulkan.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Allocator.h" />
     <ClInclude Include="Application.h" />
+    <ClInclude Include="I:\Development\Projects\LearnOpenGL\LearnOpenGL\imgui_impl_opengl3.h" />
     <ClInclude Include="image.h" />
+    <ClInclude Include="imgui_impl_glfw.h" />
+    <ClInclude Include="imgui_impl_opengl3.h" />
+    <ClInclude Include="imgui_impl_vulkan.h" />
     <ClInclude Include="Utils.h" />
   </ItemGroup>
   <ItemGroup>

@@ -7,6 +7,13 @@
 #include <unordered_map>
 #include <GLFW/glfw3native.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_vulkan.h"
+
+#ifdef _DEBUG
+#define IMGUI_VULKAN_DEBUG_REPORT
+#endif
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
@@ -18,15 +25,19 @@
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //const std::string MODEL_PATH = "../data/models/duck.obj";
-const std::string MODEL_PATH = "../data/models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
+//const std::string MODEL_PATH = "../data/models/sphere.obj";
+std::string MODEL_PATH = "../data/models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
 //const std::string MODEL_PATH = "../data/models/plane.obj";
-const std::string TEXTURE_PATH = "../data/textures/fur-bump.gif";
+//std::string TEXTURE_PATH = "../data/textures/fur-bump.gif";
+std::string TEXTURE_PATH = "../data/textures/piqsels.com-id-zfnzi.bmp";
 
 glm::float32 furLength = 0.02f;		// 每层之间的距离
 glm::float32 gravity = -0.01f;	
 const uint32_t LAYER_COUNT = 60;	// 减少每层之间的间隙
 uint32_t layerIndex = 0;
 uint32_t furDensity = 0;
+
+static ImGui_ImplVulkanH_Window g_MainWindowData;
 
 Application::Application(int inWindowWidth, int inWindowHeight, const std::string title)
 	: windowWidth(inWindowWidth), 
@@ -50,6 +61,7 @@ void Application::createWindow(int inWindowWidth, int inWindowHeight, const std:
 
 	glfwSetWindowUserPointer(window, this);
 	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
 	glfwSetKeyCallback(window, keyCallback);
 	glfwSetScrollCallback(window, scrollCallback);
 }
@@ -112,6 +124,25 @@ void Application::keyCallback(GLFWwindow* window, int key, int scancode, int act
 		app->center += up * app->cameraSpeed;
 		app->eyePosition += up * app->cameraSpeed;
 	}
+	else if (key == GLFW_KEY_KP_1)
+	{
+		MODEL_PATH = "../data/models/sphere.obj";
+		app->loadModel();
+		app->prepareModelBuffers();
+	}
+	else if (key == GLFW_KEY_KP_2)
+	{
+		MODEL_PATH = "../data/models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
+		app->loadModel();
+		app->prepareModelBuffers();
+	}
+	else if (key == GLFW_KEY_KP_3)
+	{
+		TEXTURE_PATH = "../data/textures/12248_Bird_v1_diff.bmp";
+		MODEL_PATH = "../data/models/12248_Bird_v1_L2.obj.obj";
+		app->loadModel();
+		app->prepareModelBuffers();
+	}
 }
 
 void Application::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
@@ -149,8 +180,8 @@ void Application::initializeVulkan()
 	createImageViews();
 	createRenderPass();
 	createCommandPool();
-	//loadModel();
-	loadModel("../data/models/duck.obj");
+	loadModel();
+	//loadModel("../data/models/duck.obj");
 	//loadModel(MODEL_PATH);
 	prepareTextureImages();
 	createDescriptorSetLayout();
@@ -168,6 +199,7 @@ void Application::initializeVulkan()
 	prepareGeometryBuffers();
 	prepareModelBuffers();
 	createCommandBuffers();
+	//setupImGui();
 	createSyncObjects();
 }
 
@@ -298,6 +330,97 @@ void Application::createSurface()
 	{
 		vkRuntimeError("Failed to create window surface!");
 	}
+}
+
+
+// All the ImGui_ImplVulkanH_XXX structures/functions are optional helpers used by the demo.
+// Your real engine/app may not use them.
+void Application::setupVulkanWindow(ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface, int width, int height)
+{
+	wd->Surface = surface;
+
+	// Check for WSI support
+	VkBool32 res;
+	vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, 0, wd->Surface, &res);
+	if (res != VK_TRUE)
+	{
+		fprintf(stderr, "Error no WSI support on physical device 0\n");
+		exit(-1);
+	}
+
+	// Select Surface Format
+	const VkFormat requestSurfaceImageFormat[] = { VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM };
+	const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+	wd->SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(physicalDevice, wd->Surface, requestSurfaceImageFormat, (size_t)IM_ARRAYSIZE(requestSurfaceImageFormat), requestSurfaceColorSpace);
+
+	// Select Present Mode
+#ifdef IMGUI_UNLIMITED_FRAME_RATE
+	VkPresentModeKHR present_modes[] = { VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR };
+#else
+	VkPresentModeKHR present_modes[] = { VK_PRESENT_MODE_FIFO_KHR };
+#endif
+	wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(physicalDevice, wd->Surface, &present_modes[0], IM_ARRAYSIZE(present_modes));
+	//printf("[vulkan] Selected PresentMode = %d\n", wd->PresentMode);
+
+	// Create SwapChain, RenderPass, Framebuffer, etc.
+	IM_ASSERT(g_MinImageCount >= 2);
+	ImGui_ImplVulkanH_CreateWindow(instance, physicalDevice, device, wd, findQueueFamilies(physicalDevice).graphicsFamily.value(), nullptr, width, height, minImageCount);
+}
+
+static void check_vk_result(VkResult err)
+{
+	if (err == 0) return;
+	printf("VkResult %d\n", err);
+	if (err < 0)
+		abort();
+}
+
+void Application::setupImGui()
+{
+	wd = &g_MainWindowData;
+	setupVulkanWindow(wd, surface, windowWidth, windowHeight);
+
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsClassic();
+
+	// Setup Platform/Renderer bindings
+	ImGui_ImplGlfw_InitForVulkan(window, true);
+	ImGui_ImplVulkan_InitInfo init_info = {};
+	init_info.Instance = instance;
+	init_info.PhysicalDevice = physicalDevice;
+	init_info.Device = device;
+	init_info.QueueFamily = 0;
+	init_info.Queue = graphicsQueue;
+	init_info.PipelineCache = VK_NULL_HANDLE;
+	init_info.DescriptorPool = descriptorPool;
+	init_info.Allocator = nullptr;
+	init_info.MinImageCount = minImageCount;
+	init_info.ImageCount = wd->ImageCount;
+	init_info.CheckVkResultFn = check_vk_result;
+	ImGui_ImplVulkan_Init(&init_info, wd->RenderPass);
+
+	// Load Fonts
+	// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
+	// - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
+	// - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
+	// - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
+	// - Read 'docs/FONTS.txt' for more instructions and details.
+	// - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
+	//io.Fonts->AddFontDefault();
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/ProggyTiny.ttf", 10.0f);
+	//ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
+	//IM_ASSERT(font != NULL);
 }
 
 void Application::createInstance()
@@ -691,17 +814,17 @@ void Application::createSwapChain()
 	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModeS);
 	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
 
-	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+	minImageCount = swapChainSupport.capabilities.minImageCount + 1;
 
-	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
+	if (swapChainSupport.capabilities.maxImageCount > 0 && minImageCount > swapChainSupport.capabilities.maxImageCount)
 	{
-		imageCount = swapChainSupport.capabilities.maxImageCount;
+		minImageCount = swapChainSupport.capabilities.maxImageCount;
 	}
 
 	VkSwapchainCreateInfoKHR createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	createInfo.surface = surface;
-	createInfo.minImageCount = imageCount;
+	createInfo.minImageCount = minImageCount;
 	createInfo.imageFormat = surfaceFormat.format;
 	createInfo.imageColorSpace = surfaceFormat.colorSpace;
 	createInfo.imageExtent = extent;
@@ -734,9 +857,9 @@ void Application::createSwapChain()
 
 	VKCHECK(vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain), "Failed to create swap chain!");
 
-	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
-	swapChainImages.resize(imageCount);
-	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+	vkGetSwapchainImagesKHR(device, swapChain, &minImageCount, nullptr);
+	swapChainImages.resize(minImageCount);
+	vkGetSwapchainImagesKHR(device, swapChain, &minImageCount, swapChainImages.data());
 
 	swapChainImageFormat = surfaceFormat.format;
 	swapChainExtent = extent;
@@ -1430,7 +1553,7 @@ void Application::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t wid
 	region.bufferOffset = 0;
 	region.bufferRowLength = 0;
 	region.bufferImageHeight = 0;
-
+	
 	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	region.imageSubresource.mipLevel = 0;
 	region.imageSubresource.baseArrayLayer = 0;
@@ -1448,8 +1571,8 @@ void Application::prepareTextureImages()
 {
 	//createTextureImage("textures/bunnystanford_res1_UVmapping3072_g005c.bmp", geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
 	//createTextureImage("textures/bunnystanford_res1_UVmapping3072_g005c.bmp", modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
-	createTextureImage("../data/textures/12248_Bird_v1_diff.bmp", geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
-	createTextureImage("../data/textures/12248_Bird_v1_diff.bmp", modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
+	createTextureImage(TEXTURE_PATH, geometryTextureImage, geometryTextureDeviceMemory, true, geometryMipLevels);
+	createTextureImage(TEXTURE_PATH, modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
 	//createCheckerboardTextureImage(2048, 2048, modelTextureImage, modelTextureImageMemory, true, modelMipLevels);
 
 	textures.resize(LAYER_COUNT);
@@ -1459,7 +1582,7 @@ void Application::prepareTextureImages()
 		layerIndex = i;
 		uint32_t mipLevels = 0;
 
-		createCustomTextureImage(2048, 2048, textures[i].image, textures[i].memory, false, mipLevels);
+		createCustomTextureImage(1024, 1024, textures[i].image, textures[i].memory, false, mipLevels);
 
 		textures[i].imageView =  createImageView(textures[i].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 	}
@@ -1957,6 +2080,9 @@ void Application::loadModel()
 
 	geometryVertices.clear();
 	geometryIndices.clear();
+
+	modelVertices.clear();
+	modelIndices.clear();
 
 	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 
@@ -2713,6 +2839,9 @@ void Application::createCommandBuffers()
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+		// Record Imgui Draw Data and draw funcs into command buffer
+		//ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), fd->CommandBuffer);
+
 		setupViewport(i);
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -3023,6 +3152,8 @@ void Application::mainLoop()
 
 void Application::cleanup()
 {
+	ImGui_ImplVulkanH_DestroyWindow(instance, device, &g_MainWindowData, nullptr);
+
 	cleanupSwapChain();
 
 	for (int i = 0; i < textures.size(); i++)
