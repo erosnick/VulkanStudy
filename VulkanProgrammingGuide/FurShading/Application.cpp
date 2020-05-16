@@ -7,29 +7,24 @@
 #include <unordered_map>
 #include <GLFW/glfw3native.h>
 #include <glm/gtc/matrix_transform.hpp>
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_vulkan.h"
-
-#ifdef _DEBUG
-#define IMGUI_VULKAN_DEBUG_REPORT
-#endif
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
+#include "obj.h"
+#include "objLoader.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-//#include <stb_image.h>
 #include "image.h"
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //const std::string MODEL_PATH = "../data/models/duck.obj";
-//const std::string MODEL_PATH = "../data/models/sphere.obj";
-std::string MODEL_PATH = "../data/models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
+std::string MODEL_PATH = "../data/models/sphere.obj";
+//std::string MODEL_PATH = "../data/models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
 //const std::string MODEL_PATH = "../data/models/plane.obj";
 //std::string TEXTURE_PATH = "../data/textures/fur-bump.gif";
 std::string TEXTURE_PATH = "../data/textures/piqsels.com-id-zfnzi.bmp";
+//std::string TEXTURE_PATH = "../data/textures/12248_Bird_v1_diff.bmp";
 
 glm::float32 furLength = 0.02f;		// 每层之间的距离
 glm::float32 gravity = -0.01f;	
@@ -37,13 +32,14 @@ const uint32_t LAYER_COUNT = 60;	// 减少每层之间的间隙
 uint32_t layerIndex = 0;
 uint32_t furDensity = 0;
 
-static ImGui_ImplVulkanH_Window g_MainWindowData;
-
 Application::Application(int inWindowWidth, int inWindowHeight, const std::string title)
 	: windowWidth(inWindowWidth), 
 	  windowHeight(inWindowHeight),
 	  windowTitle(title)
 {
+	objLoader loader;
+
+	loader.load(MODEL_PATH);
 }
 
 void Application::createWindow(int inWindowWidth, int inWindowHeight, const std::string title)
@@ -124,24 +120,31 @@ void Application::keyCallback(GLFWwindow* window, int key, int scancode, int act
 		app->center += up * app->cameraSpeed;
 		app->eyePosition += up * app->cameraSpeed;
 	}
-	else if (key == GLFW_KEY_KP_1)
+	else if (key == GLFW_KEY_1)
 	{
+		TEXTURE_PATH = "../dat/textures/piqsels.com-id-zfnzi.bmp";
 		MODEL_PATH = "../data/models/sphere.obj";
 		app->loadModel();
 		app->prepareModelBuffers();
+		app->createCommandPool();
+		app->createCommandBuffers();
 	}
-	else if (key == GLFW_KEY_KP_2)
+	else if (key == GLFW_KEY_2)
 	{
+		TEXTURE_PATH = "../dat/textures/piqsels.com-id-zfnzi.bmp";
 		MODEL_PATH = "../data/models/20180310_KickAir8P_UVUnwrapped_Stanford_Bunny.obj";
 		app->loadModel();
 		app->prepareModelBuffers();
+		app->createCommandPool();
+		app->createCommandBuffers();
 	}
-	else if (key == GLFW_KEY_KP_3)
+	else if (key == GLFW_KEY_3)
 	{
 		TEXTURE_PATH = "../data/textures/12248_Bird_v1_diff.bmp";
-		MODEL_PATH = "../data/models/12248_Bird_v1_L2.obj.obj";
+		MODEL_PATH = "../data/models/duck.obj";
 		app->loadModel();
 		app->prepareModelBuffers();
+		app->createCommandBuffers();
 	}
 }
 
@@ -199,7 +202,6 @@ void Application::initializeVulkan()
 	prepareGeometryBuffers();
 	prepareModelBuffers();
 	createCommandBuffers();
-	//setupImGui();
 	createSyncObjects();
 }
 
@@ -330,97 +332,6 @@ void Application::createSurface()
 	{
 		vkRuntimeError("Failed to create window surface!");
 	}
-}
-
-
-// All the ImGui_ImplVulkanH_XXX structures/functions are optional helpers used by the demo.
-// Your real engine/app may not use them.
-void Application::setupVulkanWindow(ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface, int width, int height)
-{
-	wd->Surface = surface;
-
-	// Check for WSI support
-	VkBool32 res;
-	vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, 0, wd->Surface, &res);
-	if (res != VK_TRUE)
-	{
-		fprintf(stderr, "Error no WSI support on physical device 0\n");
-		exit(-1);
-	}
-
-	// Select Surface Format
-	const VkFormat requestSurfaceImageFormat[] = { VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM };
-	const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	wd->SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(physicalDevice, wd->Surface, requestSurfaceImageFormat, (size_t)IM_ARRAYSIZE(requestSurfaceImageFormat), requestSurfaceColorSpace);
-
-	// Select Present Mode
-#ifdef IMGUI_UNLIMITED_FRAME_RATE
-	VkPresentModeKHR present_modes[] = { VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR };
-#else
-	VkPresentModeKHR present_modes[] = { VK_PRESENT_MODE_FIFO_KHR };
-#endif
-	wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(physicalDevice, wd->Surface, &present_modes[0], IM_ARRAYSIZE(present_modes));
-	//printf("[vulkan] Selected PresentMode = %d\n", wd->PresentMode);
-
-	// Create SwapChain, RenderPass, Framebuffer, etc.
-	IM_ASSERT(g_MinImageCount >= 2);
-	ImGui_ImplVulkanH_CreateWindow(instance, physicalDevice, device, wd, findQueueFamilies(physicalDevice).graphicsFamily.value(), nullptr, width, height, minImageCount);
-}
-
-static void check_vk_result(VkResult err)
-{
-	if (err == 0) return;
-	printf("VkResult %d\n", err);
-	if (err < 0)
-		abort();
-}
-
-void Application::setupImGui()
-{
-	wd = &g_MainWindowData;
-	setupVulkanWindow(wd, surface, windowWidth, windowHeight);
-
-	// Setup Dear ImGui context
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-	// Setup Dear ImGui style
-	ImGui::StyleColorsDark();
-	//ImGui::StyleColorsClassic();
-
-	// Setup Platform/Renderer bindings
-	ImGui_ImplGlfw_InitForVulkan(window, true);
-	ImGui_ImplVulkan_InitInfo init_info = {};
-	init_info.Instance = instance;
-	init_info.PhysicalDevice = physicalDevice;
-	init_info.Device = device;
-	init_info.QueueFamily = 0;
-	init_info.Queue = graphicsQueue;
-	init_info.PipelineCache = VK_NULL_HANDLE;
-	init_info.DescriptorPool = descriptorPool;
-	init_info.Allocator = nullptr;
-	init_info.MinImageCount = minImageCount;
-	init_info.ImageCount = wd->ImageCount;
-	init_info.CheckVkResultFn = check_vk_result;
-	ImGui_ImplVulkan_Init(&init_info, wd->RenderPass);
-
-	// Load Fonts
-	// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-	// - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-	// - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-	// - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-	// - Read 'docs/FONTS.txt' for more instructions and details.
-	// - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-	//io.Fonts->AddFontDefault();
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/ProggyTiny.ttf", 10.0f);
-	//ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-	//IM_ASSERT(font != NULL);
 }
 
 void Application::createInstance()
@@ -1381,14 +1292,27 @@ void Application::createCommandPool()
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
 
+	auto tempGraphicsCommandPool = graphicsCommandPool;
+
 	VKCHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &graphicsCommandPool), "Failed to create command pool!");
 
-	VkCommandPoolCreateInfo transformPoolInfo = {};
-	transformPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	transformPoolInfo.queueFamilyIndex = queueFamilyIndices.transferFamily.value();
+	if (tempGraphicsCommandPool != nullptr)
+	{
+		vkDestroyCommandPool(device, tempGraphicsCommandPool, nullptr);
+	}
 
-	VKCHECK(vkCreateCommandPool(device, &transformPoolInfo, nullptr, &transferCommandPool),
-		"Failed to create transfer command pool!");
+	VkCommandPoolCreateInfo transferPoolInfo = {};
+	transferPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	transferPoolInfo.queueFamilyIndex = queueFamilyIndices.transferFamily.value();
+
+	auto tempTranferCommandPool = transferCommandPool;
+
+	VKCHECK(vkCreateCommandPool(device, &transferPoolInfo, nullptr, &transferCommandPool), "Failed to create transfer command pool!");
+
+	if (tempTranferCommandPool != nullptr)
+	{
+		vkDestroyCommandPool(device, tempTranferCommandPool, nullptr);
+	}
 }
 
 VkFormat Application::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
@@ -1582,7 +1506,7 @@ void Application::prepareTextureImages()
 		layerIndex = i;
 		uint32_t mipLevels = 0;
 
-		createCustomTextureImage(1024, 1024, textures[i].image, textures[i].memory, false, mipLevels);
+		createCustomTextureImage(512, 512, textures[i].image, textures[i].memory, false, mipLevels);
 
 		textures[i].imageView =  createImageView(textures[i].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 	}
@@ -2130,266 +2054,151 @@ void Application::loadModel()
 		}
 	}
 
-	furDensity = static_cast<uint32_t>(modelVertices.size());
+	uint32_t verticesCount = static_cast<uint32_t>(modelVertices.size());
+
+	furDensity = verticesCount > 10000 ? verticesCount : verticesCount * 10;
 }
 
-// struct Vertex {//the definition of vertex structure
-// glm::vec3 pos;
-// glm::vec3 color;
-// glm::vec2 texCoord;
-struct data//the struct of data loading form about all vertices.
-{
-	std::vector< glm::vec3> vertex;//storage the X,Y,Z coordinations of all vertices.
-	std::vector< glm::vec3> texture;//storage the data of texture uV coordiantions of all vertices.
-	std::vector< glm::vec3> normalvector;//storage the data of normal vector X,Y,Z coordinations of all vertices.
-
-	std::vector<long> triangle_indices;//the indices of triangles which was the result after doing the segmentation on the rectange face of .obj file.
-	std::vector<long> normal_indices;//the indices of normal vector of each vertex which belong to each triangle.(it means there should be some redundancy of data).
-	std::vector<long> coordination_indices;//the indices of texture UV coordinations of each vertex which belong to each triangle.(it means there should be some redundancy of data).
-};
-
 void Application::loadModel(const std::string& modelPath) {
-	std::string line;//get the line
-	std::ifstream objfile(modelPath);//open obj file here and ready to read.
-	struct data duck;//data of duck.
-	int i = 0;
-	std::vector<long> vertex_index;//temporary vctor for storaging the index data of vertex here.
-	std::vector<long> normal_index;//temporary vctor for storaging the normal data of vertex here.
-	std::vector<long> texture_coordination_index; //temporary vctor for storaging the index data of texture coordination of vertex here.
-	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};//get rid of redundancy data here for speeding up.
+	
+	objl::Loader loader;
 
-	while (!objfile.eof())//judge whether it become to the end of file.
+	bool loadOut = loader.LoadFile(modelPath);
+
+	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+
+	if (loadOut)
 	{
-		getline(objfile, line);//resolve the data of .obj file. V, VN, VT, F.
-		if ((line[0] == 'v') && (line[1] == ' '))
+		// Go through each loaded mesh and out its contents
+		for (int i = 0; i < loader.LoadedMeshes.size(); i++)
 		{
-			std::string V;//get rid of useless leading character.
-			std::string X;//get string data of each line and partition by blank.
-			std::string Y;//get string data of each line and partition by blank.
-			std::string Z;//get string data of each line and partition by blank.
-			std::istringstream thisvertex(line);//
-			thisvertex >> V >> X >> Y >> Z;//
-			float temporaryX;//
-			float temporaryY;//
-			float temporaryZ;//
-			temporaryX = stof(X);//convert string X to float type.
-			temporaryY = stof(Y);//convert string X to float type.
-			temporaryZ = stof(Z);//convert string X to float type.
-			glm::vec3 temporaryfloatvertex = { temporaryX ,temporaryY ,temporaryZ };//make vec3 vector.
-			duck.vertex.push_back(temporaryfloatvertex);//load this vec3 vector into vertex vector. 
-			//cout << duck.vertex[i].x <<" "<< duck.vertex[i].y <<" "<< duck.vertex[i].z << endl;   
-		   // i = i + 1;
+			// Copy one of the loaded meshes to be our current mesh
+			objl::Mesh curMesh = loader.LoadedMeshes[i];
+
+			// Go through each vertex and print its number,
+			//  position, normal, and texture coordinate
+			for (int j = 0; j < curMesh.Vertices.size(); j++)
+			{
+				Vertex vertex = {};
+
+				vertex.position = {
+					curMesh.Vertices[j].Position.X,
+					curMesh.Vertices[j].Position.Y,
+					curMesh.Vertices[j].Position.Z,
+					1.0f
+				};
+
+				vertex.texCoord = {
+					curMesh.Vertices[j].TextureCoordinate.X,
+					1.0f - curMesh.Vertices[j].TextureCoordinate.Y
+				};
+
+				vertex.normal = {
+					curMesh.Vertices[j].Normal.X,
+					curMesh.Vertices[j].Normal.Y,
+					curMesh.Vertices[j].Normal.Z
+				};
+
+				vertex.color = { 1.0f, 1.0f, 1.0f };
+
+				if (uniqueVertices.count(vertex) == 0)
+				{
+					uniqueVertices[vertex] = static_cast<uint32_t>(modelVertices.size());
+					geometryVertices.push_back(vertex);
+					modelVertices.push_back(vertex);
+				}
+
+				//geometryIndices.push_back(uniqueVertices[vertex]);
+				//modelIndices.push_back(uniqueVertices[vertex]);
+			}
+
+			for (int j = 0; j < curMesh.Indices.size(); j++)
+			{
+				modelIndices.push_back(curMesh.Indices[j]);
+			}
 		}
-		else if ((line[0] == 'v') && (line[1] == 'n'))// do the same thing such as above but for the VN data.
-		{
-			std::string VN;//get rid of useless leading character.
-			std::string NX;//get string data of each line and partition by blank.
-			std::string NY;//get string data of each line and partition by blank.
-			std::string NZ;//get string data of each line and partition by blank.
-			std::istringstream thisnormalvector(line);//
-			thisnormalvector >> VN >> NX >> NY >> NZ;//
-			float temporaryNX;//
-			float temporaryNY;//
-			float temporaryNZ;//
-			temporaryNX = stof(NX);//convert string X to float type.
-			temporaryNY = stof(NY);//convert string X to float type.
-			temporaryNZ = stof(NZ);//convert string X to float type.
-			glm::vec3 temporaryfloatvertexnormalvector = { temporaryNX,temporaryNY,temporaryNZ };//make vec3 vector.
-			duck.normalvector.push_back(temporaryfloatvertexnormalvector);//load this vec3 vector into "normal vector" vector.
-			//cout << temporaryfloatvertexnormalvector.x <<" "<< temporaryfloatvertexnormalvector.y <<" "<< temporaryfloatvertexnormalvector.z << endl;
-		   //i = i + 1;
-		   //cout << i << endl;
-		}
-		else if ((line[0] == 'v') && (line[1] == 't'))// do the same thing such as above but for the VT data.
-		{
-			std::string VT;//
-			std::string TX;//
-			std::string TY;//
-			std::string TZ;//
-			std::istringstream thistexture(line);//
-			thistexture >> VT >> TX >> TY >> TZ;//
-			float temporaryTX = 0.0f;//
-			float temporaryTY = 0.0f;//
-			float temporaryTZ = 0.0f;//
-			temporaryTX = stof(TX);//
-			temporaryTY = stof(TY);//
-
-			// 2020.3.27
-			// not all vt section has four elements
-			if (!TZ.empty())
-			{
-				temporaryTZ = stof(TZ);//
-			}
-
-			//cout << temporaryTX << " " << temporaryTY << " " << temporaryTZ << endl;
-			glm::vec3 temporaryfloattexture = { temporaryTX,temporaryTY,temporaryTZ };
-			duck.texture.push_back(temporaryfloattexture);
-			//cout << duck.texture[i].x << " " << duck.texture[i].y<<" "<< duck.texture[i].z<< endl;
-			//i = i + 1;//has test the time of circulation.
-			//cout << i << endl;
-
-		}
-		//the correctness and completeness of the data have been verified.
-		else if ((line[0] == 'f') && (line[1] == ' '))//get the rectangle face from .obj file and do the segmentation here so that we can get 2 triangles from each rectangle face.
-		{
-			std::string F;//get rid of useless leading character.
-			std::string f1;//get string data of each line and partition by blank.
-			std::string f2;//get string data of each line and partition by blank.
-			std::string f3;//get string data of each line and partition by blank.
-			std::string f4;//get string data of each line and partition by blank.
-			std::string f1v;//disassemble data
-			std::string f1vt;//disassemble data
-			std::string f1vn;//disassemble data
-			std::string f2v;//disassemble data
-			std::string f2vt;//disassemble data
-			std::string f2vn;//disassemble data
-			std::string f3v;//disassemble data
-			std::string f3vt;//disassemble data
-			std::string f3vn;//disassemble data
-			std::string f4v;//disassemble data
-			std::string f4vt;//disassemble data
-			std::string f4vn;//disassemble data
-			std::istringstream thisface(line);
-			thisface >> F >> f1 >> f2 >> f3 >> f4;//get the data as the form such as x/x/x
-			//cout << f1 << " " << f2 << " " << f3 << " " << f4 << endl;
-			replace(f1.begin(), f1.end(), '/', ' ');//replace "/" with blank
-			replace(f2.begin(), f2.end(), '/', ' ');//replace "/" with blank
-			replace(f3.begin(), f3.end(), '/', ' ');//replace "/" with blank
-			replace(f4.begin(), f4.end(), '/', ' ');//replace "/" with blank
-			std::istringstream thisf1(f1);
-			thisf1 >> f1v >> f1vt >> f1vn;//get real data
-			std::istringstream thisf2(f2);
-			thisf2 >> f2v >> f2vt >> f2vn;//get real data
-			std::istringstream thisf3(f3);
-			thisf3 >> f3v >> f3vt >> f3vn;//get real data
-			std::istringstream thisf4(f4);
-			thisf4 >> f4v >> f4vt >> f4vn;//get real data
-			//cout << f1v << " " << f1vt << " " << f1vn<<"__"<< f2v<<" "<< f2vt<<" "<< f1vn <<"__"<< f3v << " " << f3vt << " " << f3vn<<"__"<< f4v << " " << f4vt << " " << f4vn << endl;
-			long temporaryf1v = 0;
-			long temporaryf1vt = 0;
-			long temporaryf1vn = 0;
-			long temporaryf2v = 0;
-			long temporaryf2vt = 0;
-			long temporaryf2vn = 0;
-			long temporaryf3v = 0;
-			long temporaryf3vt = 0;
-			long temporaryf3vn = 0;
-			long temporaryf4v = 0;
-			long temporaryf4vt = 0;
-			long temporaryf4vn = 0;
-			//data below are all long type index which can be use for searching.
-			temporaryf1v = stol(f1v);//
-			temporaryf1vt = stol(f1vt);//
-			temporaryf1vn = stol(f1vn);//
-
-			temporaryf2v = stol(f2v);//
-			temporaryf2vt = stol(f2vt);//
-			temporaryf2vn = stol(f2vn);//
-
-			temporaryf3v = stol(f3v);//
-			temporaryf3vt = stol(f3vt);//
-			temporaryf3vn = stol(f3vn);//
-
-			// 2020.3.27
-			// not all f section has four elements.
-			if (!f4v.empty())
-			{
-				temporaryf4v = stol(f4v);//
-				vertex_index.push_back(temporaryf4v - 1);//decrease 1 for every index because it begain from 1.
-			}
-
-			if (!f4vt.empty())
-			{
-				temporaryf4vt = stol(f4vt);//
-				texture_coordination_index.push_back(temporaryf4vt - 1);//decrease 1 for every index because it begain from 1.
-			}
-
-			if (!f4vn.empty())
-			{
-				temporaryf4vn = stol(f4vn);//
-				normal_index.push_back(temporaryf4vn - 1);//decrease 1 for every index because it begain from 1.
-			}
-			//push it into temporary vctor
-			//vector<long> vertex_index;//
-			//vector<long> normal_index;
-			//vector<long> texture_coordination_index;
-			vertex_index.push_back(temporaryf1v - 1);//decrease 1 for every index because it begain from 1.
-			normal_index.push_back(temporaryf1vn - 1);//decrease 1 for every index because it begain from 1.
-			texture_coordination_index.push_back(temporaryf1vt - 1);//decrease 1 for every index because it begain from 1.
-
-			vertex_index.push_back(temporaryf2v - 1);//decrease 1 for every index because it begain from 1.
-			normal_index.push_back(temporaryf2vn - 1);//decrease 1 for every index because it begain from 1.
-			texture_coordination_index.push_back(temporaryf2vt - 1);//decrease 1 for every index because it begain from 1.
-
-			vertex_index.push_back(temporaryf3v - 1);//decrease 1 for every index because it begain from 1.
-			normal_index.push_back(temporaryf3vn - 1);//decrease 1 for every index because it begain from 1.
-			texture_coordination_index.push_back(temporaryf3vt - 1);//decrease 1 for every index because it begain from 1.
-		}//
-	}//main while close.
-	for (long i = 0; i < vertex_index.size() / 4; i++)
-	{
-		long temporary0 = i * 4 + 0;
-		long temporary1 = i * 4 + 1;
-		long temporary2 = i * 4 + 2;
-		long temporary3 = i * 4 + 3;
-		//do the segmentation on the square to 2 triangle and storage the data in duck main sapce.
-		duck.triangle_indices.push_back(vertex_index[temporary0]);//the CCW let the index of rectangle face 0 1 2 3 generate two triangles with (0, 1, 2) (2,3,0) index of rectangle face.
-		duck.triangle_indices.push_back(vertex_index[temporary1]);//
-		duck.triangle_indices.push_back(vertex_index[temporary2]);//
-
-		duck.triangle_indices.push_back(vertex_index[temporary2]);//
-		duck.triangle_indices.push_back(vertex_index[temporary3]);//
-		duck.triangle_indices.push_back(vertex_index[temporary0]);//
-
-		duck.normal_indices.push_back(normal_index[temporary0]);//
-		duck.normal_indices.push_back(normal_index[temporary1]);//
-		duck.normal_indices.push_back(normal_index[temporary2]);//
-
-		duck.normal_indices.push_back(normal_index[temporary2]);//
-		duck.normal_indices.push_back(normal_index[temporary3]);//
-		duck.normal_indices.push_back(normal_index[temporary0]);//
-
-		duck.coordination_indices.push_back(texture_coordination_index[temporary0]);//
-		duck.coordination_indices.push_back(texture_coordination_index[temporary1]);//
-		duck.coordination_indices.push_back(texture_coordination_index[temporary2]);//
-
-		duck.coordination_indices.push_back(texture_coordination_index[temporary2]);//
-		duck.coordination_indices.push_back(texture_coordination_index[temporary3]);//
-		duck.coordination_indices.push_back(texture_coordination_index[temporary0]); //
 	}
-	for (long j = 0; j < duck.triangle_indices.size(); j++)//push all the vertex attributions(position, texture coordination, normal vector coordination) data to their buffers.
-	{
-		Vertex vertex = {};
-		vertex.position = {
-			duck.vertex[duck.triangle_indices[j]].x,
-			duck.vertex[duck.triangle_indices[j]].y,
-			duck.vertex[duck.triangle_indices[j]].z,
-			1.0f
-		};
 
-		vertex.texCoord = {
-			duck.texture[duck.coordination_indices[j]].x,
-			1.0f - duck.texture[duck.coordination_indices[j]].y
-		};
+	//	// Initialize Loader
+	//objl::Loader Loader;
 
-		vertex.normal = {
-			 duck.normalvector[duck.normal_indices[j]].x  ,
-			duck.normalvector[duck.normal_indices[j]].y,
-			duck.normalvector[duck.normal_indices[j]].z
+	//// Load .obj File
+	//bool loadout = Loader.LoadFile("../data/models/sphere.obj");
 
+	//// Check to see if it loaded
 
-		};
-		//cout << vertex.normal.x << ","<< vertex.normal.y <<","<< vertex.normal.z << "," << vertex.normal.w << std::endl;
+	//// If so continue
+	//if (loadout)
+	//{
+	//	// Create/Open e1Out.txt
+	//	std::ofstream file("e1Out.txt");
 
-		vertex.color = { 1.0f,1.0f,1.0f };//set the colour of polygon.
-		if (uniqueVertices.count(vertex) == 0)//get rid of the redundant vertex data.
-		{
-			uniqueVertices[vertex] = static_cast<uint32_t>(modelVertices.size());
-			modelVertices.push_back(vertex);
-		}
+	//	// Go through each loaded mesh and out its contents
+	//	for (int i = 0; i < Loader.LoadedMeshes.size(); i++)
+	//	{
+	//		// Copy one of the loaded meshes to be our current mesh
+	//		objl::Mesh curMesh = Loader.LoadedMeshes[i];
 
-		modelIndices.push_back(uniqueVertices[vertex]);
-	}
+	//		// Print Mesh Name
+	//		file << "Mesh " << i << ": " << curMesh.MeshName << "\n";
+
+	//		// Print Vertices
+	//		file << "Vertices:\n";
+
+	//		// Go through each vertex and print its number,
+	//		//  position, normal, and texture coordinate
+	//		for (int j = 0; j < curMesh.Vertices.size(); j++)
+	//		{
+	//			file << "V" << j << ": " <<
+	//				"P(" << curMesh.Vertices[j].Position.X << ", " << curMesh.Vertices[j].Position.Y << ", " << curMesh.Vertices[j].Position.Z << ") " <<
+	//				"N(" << curMesh.Vertices[j].Normal.X << ", " << curMesh.Vertices[j].Normal.Y << ", " << curMesh.Vertices[j].Normal.Z << ") " <<
+	//				"TC(" << curMesh.Vertices[j].TextureCoordinate.X << ", " << curMesh.Vertices[j].TextureCoordinate.Y << ")\n";
+	//		}
+
+	//		// Print Indices
+	//		file << "Indices:\n";
+
+	//		// Go through every 3rd index and print the
+	//		//	triangle that these indices represent
+	//		for (int j = 0; j < curMesh.Indices.size(); j += 3)
+	//		{
+	//			file << "T" << j / 3 << ": " << curMesh.Indices[j] << ", " << curMesh.Indices[j + 1] << ", " << curMesh.Indices[j + 2] << "\n";
+	//		}
+
+	//		// Print Material
+	//		file << "Material: " << curMesh.MeshMaterial.name << "\n";
+	//		file << "Ambient Color: " << curMesh.MeshMaterial.Ka.X << ", " << curMesh.MeshMaterial.Ka.Y << ", " << curMesh.MeshMaterial.Ka.Z << "\n";
+	//		file << "Diffuse Color: " << curMesh.MeshMaterial.Kd.X << ", " << curMesh.MeshMaterial.Kd.Y << ", " << curMesh.MeshMaterial.Kd.Z << "\n";
+	//		file << "Specular Color: " << curMesh.MeshMaterial.Ks.X << ", " << curMesh.MeshMaterial.Ks.Y << ", " << curMesh.MeshMaterial.Ks.Z << "\n";
+	//		file << "Specular Exponent: " << curMesh.MeshMaterial.Ns << "\n";
+	//		file << "Optical Density: " << curMesh.MeshMaterial.Ni << "\n";
+	//		file << "Dissolve: " << curMesh.MeshMaterial.d << "\n";
+	//		file << "Illumination: " << curMesh.MeshMaterial.illum << "\n";
+	//		file << "Ambient Texture Map: " << curMesh.MeshMaterial.map_Ka << "\n";
+	//		file << "Diffuse Texture Map: " << curMesh.MeshMaterial.map_Kd << "\n";
+	//		file << "Specular Texture Map: " << curMesh.MeshMaterial.map_Ks << "\n";
+	//		file << "Alpha Texture Map: " << curMesh.MeshMaterial.map_d << "\n";
+	//		file << "Bump Map: " << curMesh.MeshMaterial.map_bump << "\n";
+
+	//		// Leave a space to separate from the next mesh
+	//		file << "\n";
+	//	}
+
+	//	// Close File
+	//	file.close();
+	//}
+	//// If not output an error
+	//else
+	//{
+	//	// Create/Open e1Out.txt
+	//	std::ofstream file("e1Out.txt");
+
+	//	// Output Error
+	//	file << "Failed to Load File. May have failed to find it or it was not an .obj file.\n";
+
+	//	// Close File
+	//	file.close();
+	//}
 
 	furDensity = static_cast<uint32_t>(modelVertices.size());
 }
@@ -2486,12 +2295,25 @@ void Application::createAllInOneBuffer(const std::vector<Vertex>& vertices,
 	memcpy_s(data, (size_t)vertexBufferSize, vertices.data(), (size_t)vertexBufferSize);
 	memcpy_s((Vertex*)data + vertices.size(), (size_t)indexBufferSize, indeices.data(), (size_t)indexBufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
+	
+	auto tempBuffer = buffer;
+	auto tempBufferMemory = bufferMemory;
 
 	createBuffer(allInOneBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT |
 									 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
 									 VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 									 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 									 buffer, bufferMemory);
+
+	if (tempBuffer != nullptr)
+	{
+		vkDestroyBuffer(device, tempBuffer, nullptr);
+	}
+
+	if (tempBufferMemory != nullptr)
+	{
+		vkFreeMemory(device, tempBufferMemory, nullptr);
+	}
 
 	copyBuffer(stagingBuffer, buffer, allInOneBufferSize);
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -2839,23 +2661,13 @@ void Application::createCommandBuffers()
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		// Record Imgui Draw Data and draw funcs into command buffer
-		//ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), fd->CommandBuffer);
-
 		setupViewport(i);
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 		VkBuffer geometryVertexBuffers[] = { allInOneBuffer };
-		VkBuffer modelVertexBuffers[] = { modelAllInOneBuffer };
-
-		VkDeviceSize offsets[] = { 0 };
-
-		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, modelVertexBuffers, offsets);
-
-		VkDeviceSize offset = sizeof(modelVertices[0]) * modelVertices.size();
-
-		vkCmdBindIndexBuffer(commandBuffers[i], modelAllInOneBuffer, offset, VK_INDEX_TYPE_UINT32);
+	
+		bindVertexBufferAndIndexBuffer(i);
 		
 		uint32_t dynamicOffset = 0;
 
@@ -2871,11 +2683,11 @@ void Application::createCommandBuffers()
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, furGraphicPipeline);
 
-		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, modelVertexBuffers, offsets);
+		//vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, modelVertexBuffers, offsets);
 
-		offset = sizeof(modelVertices[0]) * modelVertices.size();
+		//offset = sizeof(modelVertices[0]) * modelVertices.size();
 
-		vkCmdBindIndexBuffer(commandBuffers[i], modelAllInOneBuffer, offset, VK_INDEX_TYPE_UINT32);
+		//vkCmdBindIndexBuffer(commandBuffers[i], modelAllInOneBuffer, offset, VK_INDEX_TYPE_UINT32);
 		
 		// Draw fur shells
 		for (uint32_t j = 0; j < LAYER_COUNT; j++)
@@ -3152,8 +2964,6 @@ void Application::mainLoop()
 
 void Application::cleanup()
 {
-	ImGui_ImplVulkanH_DestroyWindow(instance, device, &g_MainWindowData, nullptr);
-
 	cleanupSwapChain();
 
 	for (int i = 0; i < textures.size(); i++)
@@ -3231,4 +3041,17 @@ void Application::run()
 
 	initializeVulkan();
 	mainLoop();
+}
+
+void Application::bindVertexBufferAndIndexBuffer(uint32_t index)
+{
+	VkBuffer modelVertexBuffers[] = { modelAllInOneBuffer };
+
+	VkDeviceSize offsets[] = { 0 };
+
+	vkCmdBindVertexBuffers(commandBuffers[index], 0, 1, modelVertexBuffers, offsets);
+
+	VkDeviceSize offset = sizeof(modelVertices[0]) * modelVertices.size();
+
+	vkCmdBindIndexBuffer(commandBuffers[index], modelAllInOneBuffer, offset, VK_INDEX_TYPE_UINT32);
 }

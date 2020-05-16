@@ -103,7 +103,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\Third-Party\imgui;$(SolutionDir)External\vulkan;$(SolutionDir)External\Third-Party;$(SolutionDir)External\Third-Party\tinyobj;$(SolutionDir)External\Third-Party\stb</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)External\Third-Party;$(SolutionDir)External\vulkan;$(SolutionDir)External\Third-Party\tinyobj;$(SolutionDir)External\Third-Party\glm</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -119,7 +119,7 @@
       </Command>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Command>call $(ProjectDir)compile.bat</Command>
+      <Command>call "$(ProjectDir)compile.bat"</Command>
       <Outputs>*.spv;%(Outputs)</Outputs>
     </CustomBuildStep>
     <Manifest>
@@ -156,7 +156,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\vulkan;$(SolutionDir)External\Third-Party;$(SolutionDir)External\Third-Party\tinyobj;$(SolutionDir)External\Third-Party\stb;$(SolutionDir)External\Third-Party\imgui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)External\Third-Party;$(SolutionDir)External\vulkan;$(SolutionDir)External\Third-Party\tinyobj;$(SolutionDir)External\Third-Party\glm</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -169,7 +169,7 @@
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
     <CustomBuildStep>
-      <Command>call $(ProjectDir)compile.bat</Command>
+      <Command>call "$(ProjectDir)compile.bat"</Command>
       <Outputs>*.spv;%(Outputs)</Outputs>
     </CustomBuildStep>
     <Manifest>
@@ -177,28 +177,12 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\External\Third-Party\imgui\imgui.cpp" />
-    <ClCompile Include="..\External\Third-Party\imgui\imgui_demo.cpp" />
-    <ClCompile Include="..\External\Third-Party\imgui\imgui_draw.cpp" />
-    <ClCompile Include="..\External\Third-Party\imgui\imgui_widgets.cpp" />
     <ClCompile Include="Allocator.cpp" />
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="image.cpp" />
-    <ClCompile Include="imgui_impl_glfw.cpp" />
-    <ClCompile Include="imgui_impl_opengl3.cpp" />
-    <ClCompile Include="imgui_impl_vulkan.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="objLoader.cpp" />
     <ClCompile Include="Utils.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Allocator.h" />
-    <ClInclude Include="Application.h" />
-    <ClInclude Include="I:\Development\Projects\LearnOpenGL\LearnOpenGL\imgui_impl_opengl3.h" />
-    <ClInclude Include="image.h" />
-    <ClInclude Include="imgui_impl_glfw.h" />
-    <ClInclude Include="imgui_impl_opengl3.h" />
-    <ClInclude Include="imgui_impl_vulkan.h" />
-    <ClInclude Include="Utils.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\data\shaders\basic.frag" />
@@ -210,6 +194,13 @@
     <None Include="..\data\shaders\mesh.frag" />
     <None Include="..\data\shaders\mesh.vert" />
     <None Include="..\data\shaders\normaldebug.geom" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Application.h" />
+    <ClInclude Include="image.h" />
+    <ClInclude Include="obj.h" />
+    <ClInclude Include="objLoader.h" />
+    <ClInclude Include="Utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

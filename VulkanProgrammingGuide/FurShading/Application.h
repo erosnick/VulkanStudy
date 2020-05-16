@@ -153,8 +153,6 @@ struct TextureAsset
 	const bool enableValidationLayers = true;
 #endif
 
-class ImGui_ImplVulkanH_Window;
-
 class Application
 {
 public:
@@ -173,8 +171,6 @@ public:
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	void setupDebugMessenger();
 	void createSurface();
-	void setupVulkanWindow(ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface, int width, int height);
-	void setupImGui();
 	void createInstance();
 	void queryDeviceLayers();
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
@@ -280,6 +276,8 @@ public:
 	~Application();
 
 	void run();
+
+	void bindVertexBufferAndIndexBuffer(uint32_t index);
 
 	float rotateAngle = 0.0f;
 	const float cameraSpeed = 0.01f;
@@ -412,6 +410,7 @@ protected:
 	uint32_t dynamicAlignment = 0;
 	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	std::vector<VkShaderModule> shaderModules;
-	ImGui_ImplVulkanH_Window* wd;
 	uint32_t minImageCount;
+
+	
 };
