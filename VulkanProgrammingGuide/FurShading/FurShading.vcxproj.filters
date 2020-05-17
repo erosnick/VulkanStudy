@@ -32,7 +32,7 @@
     <ClCompile Include="image.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="objLoader.cpp">
+    <ClCompile Include="obj.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -78,6 +78,8 @@
     <ClInclude Include="obj.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="objLoader.h" />
+    <ClInclude Include="model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

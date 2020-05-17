@@ -11,7 +11,6 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 #include "obj.h"
-#include "objLoader.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "image.h"
@@ -37,9 +36,6 @@ Application::Application(int inWindowWidth, int inWindowHeight, const std::strin
 	  windowHeight(inWindowHeight),
 	  windowTitle(title)
 {
-	objLoader loader;
-
-	loader.load(MODEL_PATH);
 }
 
 void Application::createWindow(int inWindowWidth, int inWindowHeight, const std::string title)
@@ -183,9 +179,9 @@ void Application::initializeVulkan()
 	createImageViews();
 	createRenderPass();
 	createCommandPool();
-	loadModel();
+	//loadModel();
 	//loadModel("../data/models/duck.obj");
-	//loadModel(MODEL_PATH);
+	loadModel(MODEL_PATH);
 	prepareTextureImages();
 	createDescriptorSetLayout();
 	createDescriptorPool();
@@ -2061,144 +2057,52 @@ void Application::loadModel()
 
 void Application::loadModel(const std::string& modelPath) {
 	
-	objl::Loader loader;
+	CObj obj;
 
-	bool loadOut = loader.LoadFile(modelPath);
+	obj.Load(modelPath.c_str());
+
+	auto faces = obj.m_vFaces;
+	auto vertices = obj.m_vVertices;
+	auto normals = obj.m_vNormals;
+	auto texcoords = obj.m_vTexCoords;
 
 	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 
-	if (loadOut)
+	for (int i = 0; i < faces.size(); i++)
 	{
-		// Go through each loaded mesh and out its contents
-		for (int i = 0; i < loader.LoadedMeshes.size(); i++)
+		Vertex vertex = {};
+
+		for (int j = 0; j < 3; j++)
 		{
-			// Copy one of the loaded meshes to be our current mesh
-			objl::Mesh curMesh = loader.LoadedMeshes[i];
-
-			// Go through each vertex and print its number,
-			//  position, normal, and texture coordinate
-			for (int j = 0; j < curMesh.Vertices.size(); j++)
-			{
-				Vertex vertex = {};
-
-				vertex.position = {
-					curMesh.Vertices[j].Position.X,
-					curMesh.Vertices[j].Position.Y,
-					curMesh.Vertices[j].Position.Z,
-					1.0f
-				};
-
-				vertex.texCoord = {
-					curMesh.Vertices[j].TextureCoordinate.X,
-					1.0f - curMesh.Vertices[j].TextureCoordinate.Y
-				};
-
-				vertex.normal = {
-					curMesh.Vertices[j].Normal.X,
-					curMesh.Vertices[j].Normal.Y,
-					curMesh.Vertices[j].Normal.Z
-				};
-
-				vertex.color = { 1.0f, 1.0f, 1.0f };
-
-				if (uniqueVertices.count(vertex) == 0)
-				{
-					uniqueVertices[vertex] = static_cast<uint32_t>(modelVertices.size());
-					geometryVertices.push_back(vertex);
-					modelVertices.push_back(vertex);
-				}
-
-				//geometryIndices.push_back(uniqueVertices[vertex]);
-				//modelIndices.push_back(uniqueVertices[vertex]);
-			}
-
-			for (int j = 0; j < curMesh.Indices.size(); j++)
-			{
-				modelIndices.push_back(curMesh.Indices[j]);
-			}
+			vertex.position = {
+				vertices[faces[i].m_uiVertIdx[j]][0],
+				vertices[faces[i].m_uiVertIdx[j]][1],
+				vertices[faces[i].m_uiVertIdx[j]][2],
+				1.0f
+			};
 		}
+
+		vertex.normal = {
+			normals[faces[i].m_uiNormalIdx[j]][0],
+			normals[faces[i].m_uiNormalIdx[j]][1],
+			normals[faces[i].m_uiNormalIdx[j]][2],
+		};
+
+		vertex.texCoord = {
+			texcoords[faces[i].m_uiTexCoordIdx[0]][,
+			1 - texcoords[faces[i].m_uiTexCoordIdx[1]]
+		};
+
+		if (uniqueVertices.count(vertex) == 0)
+		{
+			uniqueVertices[vertex] = static_cast<uint32_t>(modelVertices.size());
+			geometryVertices.push_back(vertex);
+			modelVertices.push_back(vertex);
+		}
+
+		geometryIndices.push_back(uniqueVertices[vertex]);
+		modelIndices.push_back(uniqueVertices[vertex]);
 	}
-
-	//	// Initialize Loader
-	//objl::Loader Loader;
-
-	//// Load .obj File
-	//bool loadout = Loader.LoadFile("../data/models/sphere.obj");
-
-	//// Check to see if it loaded
-
-	//// If so continue
-	//if (loadout)
-	//{
-	//	// Create/Open e1Out.txt
-	//	std::ofstream file("e1Out.txt");
-
-	//	// Go through each loaded mesh and out its contents
-	//	for (int i = 0; i < Loader.LoadedMeshes.size(); i++)
-	//	{
-	//		// Copy one of the loaded meshes to be our current mesh
-	//		objl::Mesh curMesh = Loader.LoadedMeshes[i];
-
-	//		// Print Mesh Name
-	//		file << "Mesh " << i << ": " << curMesh.MeshName << "\n";
-
-	//		// Print Vertices
-	//		file << "Vertices:\n";
-
-	//		// Go through each vertex and print its number,
-	//		//  position, normal, and texture coordinate
-	//		for (int j = 0; j < curMesh.Vertices.size(); j++)
-	//		{
-	//			file << "V" << j << ": " <<
-	//				"P(" << curMesh.Vertices[j].Position.X << ", " << curMesh.Vertices[j].Position.Y << ", " << curMesh.Vertices[j].Position.Z << ") " <<
-	//				"N(" << curMesh.Vertices[j].Normal.X << ", " << curMesh.Vertices[j].Normal.Y << ", " << curMesh.Vertices[j].Normal.Z << ") " <<
-	//				"TC(" << curMesh.Vertices[j].TextureCoordinate.X << ", " << curMesh.Vertices[j].TextureCoordinate.Y << ")\n";
-	//		}
-
-	//		// Print Indices
-	//		file << "Indices:\n";
-
-	//		// Go through every 3rd index and print the
-	//		//	triangle that these indices represent
-	//		for (int j = 0; j < curMesh.Indices.size(); j += 3)
-	//		{
-	//			file << "T" << j / 3 << ": " << curMesh.Indices[j] << ", " << curMesh.Indices[j + 1] << ", " << curMesh.Indices[j + 2] << "\n";
-	//		}
-
-	//		// Print Material
-	//		file << "Material: " << curMesh.MeshMaterial.name << "\n";
-	//		file << "Ambient Color: " << curMesh.MeshMaterial.Ka.X << ", " << curMesh.MeshMaterial.Ka.Y << ", " << curMesh.MeshMaterial.Ka.Z << "\n";
-	//		file << "Diffuse Color: " << curMesh.MeshMaterial.Kd.X << ", " << curMesh.MeshMaterial.Kd.Y << ", " << curMesh.MeshMaterial.Kd.Z << "\n";
-	//		file << "Specular Color: " << curMesh.MeshMaterial.Ks.X << ", " << curMesh.MeshMaterial.Ks.Y << ", " << curMesh.MeshMaterial.Ks.Z << "\n";
-	//		file << "Specular Exponent: " << curMesh.MeshMaterial.Ns << "\n";
-	//		file << "Optical Density: " << curMesh.MeshMaterial.Ni << "\n";
-	//		file << "Dissolve: " << curMesh.MeshMaterial.d << "\n";
-	//		file << "Illumination: " << curMesh.MeshMaterial.illum << "\n";
-	//		file << "Ambient Texture Map: " << curMesh.MeshMaterial.map_Ka << "\n";
-	//		file << "Diffuse Texture Map: " << curMesh.MeshMaterial.map_Kd << "\n";
-	//		file << "Specular Texture Map: " << curMesh.MeshMaterial.map_Ks << "\n";
-	//		file << "Alpha Texture Map: " << curMesh.MeshMaterial.map_d << "\n";
-	//		file << "Bump Map: " << curMesh.MeshMaterial.map_bump << "\n";
-
-	//		// Leave a space to separate from the next mesh
-	//		file << "\n";
-	//	}
-
-	//	// Close File
-	//	file.close();
-	//}
-	//// If not output an error
-	//else
-	//{
-	//	// Create/Open e1Out.txt
-	//	std::ofstream file("e1Out.txt");
-
-	//	// Output Error
-	//	file << "Failed to Load File. May have failed to find it or it was not an .obj file.\n";
-
-	//	// Close File
-	//	file.close();
-	//}
 
 	furDensity = static_cast<uint32_t>(modelVertices.size());
 }
