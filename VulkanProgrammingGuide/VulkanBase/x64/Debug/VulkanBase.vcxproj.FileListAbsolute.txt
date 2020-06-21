@@ -1,2 +1,0 @@
-E:\Projects\VulkanStudy\VulkanProgrammingGuide\build\VulkanBase\Debug\VulkanBase.pdb
-E:\Projects\VulkanStudy\VulkanProgrammingGuide\VulkanBase\x64\Debug\VulkanBase.pdb
