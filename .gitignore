@@ -1,0 +1,23 @@
+# Directories
+.vs/
+bin/
+bin-int/
+
+# Files
+*.vcxproj
+*.vcxproj.user
+*.vcxproj.filters
+*.sln
+*.obj
+*.ilk
+*.pdb
+*.log
+*.tlog
+*.recipe
+*.idb
+
+.VulkanAppTemplate/obj
+.VulkanAppTemplate/bin
+
+# Exclude
+!vendor/bin
