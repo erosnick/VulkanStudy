@@ -1,3 +1,6 @@
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -7,6 +10,11 @@
 #include <glm/mat4x4.hpp>
 
 #include <iostream>
+
+//#define IMGUI_UNLIMITED_FRAME_RATE
+#ifdef _DEBUG
+#define IMGUI_VULKAN_DEBUG_REPORT
+#endif
 
 int main() {
     glfwInit();

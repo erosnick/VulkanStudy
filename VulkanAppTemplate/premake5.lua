@@ -2,6 +2,7 @@
 workspace "VulkanApp"
     configurations { "Debug", "Release" }    --解决方案配置项，Debug和Release默认配置
     location "Project"                      --解决方案文件夹，这是我自己喜欢用的project简写
+    cppdialect "c++17"
 
     --增加平台配置，我希望有Win32和x64两种平台
     platforms
@@ -35,10 +36,10 @@ project "VulkanApp"
 
     vpaths 
     {
-        -- ["Headers/*"] = { "**.h", "**.hpp" },  --包含具体路径
-        -- ["Sources/*"] = {"**.c", "**.cpp"},    --包含具体路径
-        ["Headers"] = { "**.h", "**.hpp" },       --不包含具体路径
-        ["Sources"] = {"**.c", "**.cpp"},         --不包含具体路径
+        -- ["Headers/*"] = { "*.h", "*.hpp" },  --包含具体路径
+        -- ["Sources/*"] = { "*.c", "*.cpp" },  --包含具体路径
+        ["Headers"] = { "**.h", "**.hpp" },     --不包含具体路径
+        ["Sources"] = { "**.c", "**.cpp" },     --不包含具体路径
         ["Docs"] = "**.md"
     }
 
@@ -48,16 +49,24 @@ project "VulkanApp"
         symbols "On"                        --开启调试符号
         includedirs 
         { 
-            os.getenv("VULKAN_SDK")..'/Include',
+            './ThirdParty/stb',
+            '%{IncludeDir.VulkanSDK}',
+            './ThirdParty/imgui-1.89.2',
             './ThirdParty/glm-0.9.9.8/glm',
             './ThirdParty/glfw-3.3.8.bin.WIN64/include'
         }
+
 		libdirs 
         { 
             './ThirdParty/glfw-3.3.8.bin.WIN64/lib-vc2022',
-            os.getenv("VULKAN_SDK")..'/Lib',
         }
-		links { "glfw3.lib", "vulkan-1.lib" }
+
+		links 
+        { 
+            "glfw3.lib", 
+            "%{Library.Vulkan}", 
+            "ImGui" 
+        }
 
         debugdir "%{prj.location}"
 
@@ -67,15 +76,25 @@ project "VulkanApp"
         optimize "On"                        --开启优化参数
         includedirs 
         { 
-            os.getenv("VULKAN_SDK")..'/Include',
+            './ThirdParty/stb',
+            '%{IncludeDir.VulkanSDK}',
+            './ThirdParty/imgui-1.89.2',
             './ThirdParty/glm-0.9.9.8/glm',
             './ThirdParty/glfw-3.3.8.bin.WIN64/include'
         }
+
 		libdirs 
         { 
             './ThirdParty/glfw-3.3.8.bin.WIN64/lib-vc2022',
-            os.getenv("VULKAN_SDK")..'/Lib'
         }
-		links { "glfw3.lib", "vulkan-1.lib" }
+
+		links 
+        { 
+            "glfw3.lib", 
+            "%{Library.Vulkan}", 
+            "ImGui" 
+        }
 
         debugdir "%{prj.location}"
+
+include "External.lua"
