@@ -9,6 +9,9 @@
 #include <vector>
 #include <optional>
 
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_vulkan.h>
+
 const uint32_t WindowWidth = 800;
 const uint32_t WindowHeight = 600;
 
@@ -16,6 +19,8 @@ const std::vector<const char*> ValidationLayers = { "VK_LAYER_KHRONOS_validation
 const std::vector<const char*> DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
 const std::string ResourceBase = "../Assets/";
+
+static ImGui_ImplVulkanH_Window g_MainWindowData;
 
 #ifdef NDEBUG
 const bool EnableValidationLayers = false;
@@ -25,7 +30,21 @@ const bool EnableValidationLayers = true;
 
 #define THROW_ERROR(message) throw std::runtime_error(message);
 
-#define VkCheck(result, message) if (result != VK_SUCCESS) { THROW_ERROR(message) } 
+#define VkCheck(result, message) if (result != VK_SUCCESS) { THROW_ERROR(message) }
+
+// Our state
+static bool showDemoWindow = true;
+static bool showAnotherWindow = false;
+static ImVec4 clearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+static void check_vk_result(VkResult err)
+{
+	if (err == 0)
+		return;
+	fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
+	if (err < 0)
+		abort();
+}
 
 struct QueueFamilyIndices
 {
@@ -60,6 +79,7 @@ private:
 	void createSurface();
 	void pickPhysicalDevice();
 	void createLogicalDevice();
+	void createDescriptorPool();
 	void createSwapChain();
 	void createImageViews();
 	void createRenderPass();
@@ -74,6 +94,12 @@ private:
 	
 	void initWindow();
 	void initVulkan();
+	void initImGui();
+
+	void updateImGui();
+	void createImGuiWidgets();
+	void renderImGui();
+	void cleanupImGui();
 
 	bool isDeviceSuitable(VkPhysicalDevice inDevice);
 	int32_t rateDeviceSuitability(VkPhysicalDevice inDevice);
@@ -101,8 +127,12 @@ private:
 
 private:
 	struct GLFWwindow* window;
+
+	VkAllocationCallbacks* allocator;
+
 	VkInstance instance;
 	VkPhysicalDevice physicalDevice;
+	VkDescriptorPool descriptorPool;
 	VkDevice device;
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
@@ -122,4 +152,8 @@ private:
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	VkDebugUtilsMessengerEXT debugMessenger;
+
+	uint32_t minImageCount;
+	uint32_t imageCount;
+	VkClearValue clearColor;
 };

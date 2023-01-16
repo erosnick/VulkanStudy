@@ -56,7 +56,8 @@ std::vector<char> readFile(const std::string& filaName)
 }
 
 HelloTriangleApplicaton::HelloTriangleApplicaton()
-: window(nullptr), 
+: window(nullptr),
+  allocator(VK_NULL_HANDLE),
   instance(VK_NULL_HANDLE), 
   physicalDevice(VK_NULL_HANDLE),
   device(VK_NULL_HANDLE),
@@ -74,7 +75,9 @@ HelloTriangleApplicaton::HelloTriangleApplicaton()
   inFlightFence(VK_NULL_HANDLE),
   swapChainImageFormat(VK_FORMAT_UNDEFINED),
   swapChainExtent{ 0, 0 },
-  debugMessenger(VK_NULL_HANDLE)
+  debugMessenger(VK_NULL_HANDLE),
+  minImageCount(0),
+  imageCount(0)
 {
 }
 
@@ -86,6 +89,7 @@ void HelloTriangleApplicaton::run()
 {
 	initWindow();
 	initVulkan();
+	initImGui();
 	mainLoop();
 	cleanup();
 }
@@ -143,7 +147,7 @@ void HelloTriangleApplicaton::createInstance()
 		instanceCreateInfo.pNext = nullptr;
 	}
 	
-	VkCheck(vkCreateInstance(&instanceCreateInfo, nullptr, &instance), "Failed to create instance!");
+	VkCheck(vkCreateInstance(&instanceCreateInfo, allocator, &instance), "Failed to create instance!");
 
 	checkExtensionSupport();
 }
@@ -158,7 +162,7 @@ void HelloTriangleApplicaton::setupDebugMessenger()
 	VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo{};
 	populateDebugMessengerCreateInfo(debugMessengerCreateInfo);
 
-	if (createDebugUtilsMessengerEXT(instance, &debugMessengerCreateInfo, nullptr, &debugMessenger) != VK_SUCCESS)
+	if (createDebugUtilsMessengerEXT(instance, &debugMessengerCreateInfo, allocator, &debugMessenger) != VK_SUCCESS)
 	{
 		THROW_ERROR("failed to set up debug messenger!");
 	}
@@ -183,6 +187,7 @@ void HelloTriangleApplicaton::initVulkan()
 	createSurface();
 	pickPhysicalDevice();
 	createLogicalDevice();
+	createDescriptorPool();
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
@@ -191,6 +196,148 @@ void HelloTriangleApplicaton::initVulkan()
 	createCommandPool();
 	createCommandBuffer();
 	createSyncObjects();
+}
+
+void HelloTriangleApplicaton::initImGui()
+{
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsLight();
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForVulkan(window, true);
+	ImGui_ImplVulkan_InitInfo initInfo = {};
+	initInfo.Instance = instance;
+	initInfo.PhysicalDevice = physicalDevice;
+	initInfo.Device = device;
+
+	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+	initInfo.QueueFamily = queueFamilyIndices.graphicsFamily.value();
+	initInfo.Queue = graphicsQueue;
+	initInfo.PipelineCache = VK_NULL_HANDLE;
+	initInfo.DescriptorPool = descriptorPool;
+	initInfo.Subpass = 0;
+	initInfo.MinImageCount = minImageCount;
+	initInfo.ImageCount = imageCount;
+	initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+	initInfo.Allocator = allocator;
+	initInfo.CheckVkResultFn = check_vk_result;
+	ImGui_ImplVulkan_Init(&initInfo, renderPass);
+
+	// Load Fonts
+	// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
+	// - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
+	// - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
+	// - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
+	// - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
+	// - Read 'docs/FONTS.md' for more instructions and details.
+	// - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
+	//io.Fonts->AddFontDefault();
+	//io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
+	//ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
+	//IM_ASSERT(font != NULL);
+	
+	// Upload Fonts
+	{
+		// Use any command queue
+		VkCheck(vkResetCommandPool(device, commandPool, 0), "vkResetCommandPool failed!");
+
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		VkCheck(vkBeginCommandBuffer(commandBuffer, &beginInfo), "vkBeginCommandBuffer failed!");
+
+		ImGui_ImplVulkan_CreateFontsTexture(commandBuffer);
+
+		VkSubmitInfo endInfo = {};
+		endInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		endInfo.commandBufferCount = 1;
+		endInfo.pCommandBuffers = &commandBuffer;
+		VkCheck(vkEndCommandBuffer(commandBuffer), "vkEndCommandBuffer failed!");
+		
+		VkCheck(vkQueueSubmit(graphicsQueue, 1, &endInfo, VK_NULL_HANDLE), "vkQueueSubmit failed!");
+
+		VkCheck(vkDeviceWaitIdle(device), "vkDeviceWaitIdle failed!");
+
+		ImGui_ImplVulkan_DestroyFontUploadObjects();
+	}
+}
+
+void HelloTriangleApplicaton::updateImGui()
+{
+	// Start the Dear ImGui frame
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+}
+
+void HelloTriangleApplicaton::createImGuiWidgets()
+{
+	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+	if (showDemoWindow)
+		ImGui::ShowDemoWindow(&showDemoWindow);
+
+	// 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+	{
+		static float f = 0.0f;
+		static int counter = 0;
+
+		ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+		ImGui::Checkbox("Demo Window", &showDemoWindow);      // Edit bools storing our window open/close state
+		ImGui::Checkbox("Another Window", &showAnotherWindow);
+
+		ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+		ImGui::ColorEdit3("clear color", (float*)&clearColor); // Edit 3 floats representing a color
+
+		if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+			counter++;
+		ImGui::SameLine();
+		ImGui::Text("counter = %d", counter);
+
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::End();
+	}
+
+	// 3. Show another simple window.
+	if (showAnotherWindow)
+	{
+		ImGui::Begin("Another Window", &showAnotherWindow);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+		ImGui::Text("Hello from another window!");
+		if (ImGui::Button("Close Me"))
+			showAnotherWindow = false;
+		ImGui::End();
+	}
+
+}
+
+void HelloTriangleApplicaton::renderImGui()
+{
+	// Rendering
+	ImGui::Render();
+	ImDrawData* drawData = ImGui::GetDrawData();
+	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
+	// Record dear imgui primitives into command buffer
+	ImGui_ImplVulkan_RenderDrawData(drawData, commandBuffer);
+}
+
+void HelloTriangleApplicaton::cleanupImGui()
+{
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 }
 
 void HelloTriangleApplicaton::pickPhysicalDevice()
@@ -264,10 +411,38 @@ void HelloTriangleApplicaton::createLogicalDevice()
 		deviceCreateInfo.enabledLayerCount = 0;
 	}
 
-	VkCheck(vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device), "Failed to create logical device!");
+	VkCheck(vkCreateDevice(physicalDevice, &deviceCreateInfo, allocator, &device), "Failed to create logical device!");
 
 	vkGetDeviceQueue(device, queueFamilyIndices.graphicsFamily.value(), 0, &graphicsQueue);
 	vkGetDeviceQueue(device, queueFamilyIndices.presentFamily.value(), 0, &presentQueue);
+}
+
+void HelloTriangleApplicaton::createDescriptorPool()
+{
+	// Create Descriptor Pool
+	{
+		VkDescriptorPoolSize poolSizes[] =
+		{
+			{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+		};
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+		descriptorPoolCreateInfo.maxSets = 1000 * IM_ARRAYSIZE(poolSizes);
+		descriptorPoolCreateInfo.poolSizeCount = (uint32_t)IM_ARRAYSIZE(poolSizes);
+		descriptorPoolCreateInfo.pPoolSizes = poolSizes;
+		VkCheck(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, allocator, &descriptorPool), "vkCreateDescriptorPool failed!");
+	}
 }
 
 void HelloTriangleApplicaton::createSwapChain()
@@ -278,7 +453,8 @@ void HelloTriangleApplicaton::createSwapChain()
 	VkPresentModeKHR presentMode = chooseSwapChainPresentMode(swapChainDetails.presentModes);
 	VkExtent2D extent = chooseSwapChainExtent(swapChainDetails.capabilities);
 
-	uint32_t imageCount = swapChainDetails.capabilities.minImageCount + 1;
+	minImageCount = swapChainDetails.capabilities.minImageCount;
+	imageCount = swapChainDetails.capabilities.minImageCount + 1;
 
 	if (swapChainDetails.capabilities.maxImageCount > 0 && imageCount > swapChainDetails.capabilities.maxImageCount)
 	{
@@ -707,7 +883,7 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	renderPassBeginInfo.renderArea.offset = { 0, 0 };
 	renderPassBeginInfo.renderArea.extent = swapChainExtent;
 
-	VkClearValue clearColor = { {{0.4f, 0.6f, 0.9f, 1.0f}} };
+	clearColor = { {{0.4f, 0.6f, 0.9f, 1.0f}} };
 	renderPassBeginInfo.clearValueCount = 1;
 	renderPassBeginInfo.pClearValues = &clearColor;
 
@@ -741,6 +917,8 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	// firstVertex : Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
 	// firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+	renderImGui();
 
 	vkCmdEndRenderPass(commandBuffer);
 
@@ -936,6 +1114,8 @@ void HelloTriangleApplicaton::mainLoop()
 	while (!glfwWindowShouldClose(window)) 
 	{
 		glfwPollEvents();
+		updateImGui();
+		createImGuiWidgets();
 		drawFrame();
 	}
 
@@ -1005,39 +1185,43 @@ void HelloTriangleApplicaton::drawFrame()
 
 void HelloTriangleApplicaton::cleanup()
 {
-	vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
-	vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
-	vkDestroyFence(device, inFlightFence, nullptr);
+	cleanupImGui();
 
-	vkDestroyCommandPool(device, commandPool, nullptr);
+	vkDestroySemaphore(device, imageAvailableSemaphore, allocator);
+	vkDestroySemaphore(device, renderFinishedSemaphore, allocator);
+	vkDestroyFence(device, inFlightFence, allocator);
+
+	vkDestroyCommandPool(device, commandPool, allocator);
 
 	for (auto& framebuffer : swapChainFramebuffers)
 	{
-		vkDestroyFramebuffer(device, framebuffer, nullptr);
+		vkDestroyFramebuffer(device, framebuffer, allocator);
 	}
 
-	vkDestroyPipeline(device, graphicsPipeline, nullptr);
+	vkDestroyPipeline(device, graphicsPipeline, allocator);
 
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, allocator);
 
-	vkDestroyRenderPass(device, renderPass, nullptr);
+	vkDestroyRenderPass(device, renderPass, allocator);
 
 	for (auto& imageView : swapChainImageViews)
 	{
-		vkDestroyImageView(device, imageView, nullptr);
+		vkDestroyImageView(device, imageView, allocator);
 	}
 
-	vkDestroySwapchainKHR(device, swapChain, nullptr);
+	vkDestroyDescriptorPool(device, descriptorPool, allocator);
 
-	vkDestroyDevice(device, nullptr);
+	vkDestroySwapchainKHR(device, swapChain, allocator);
+
+	vkDestroyDevice(device, allocator);
 
 	if (EnableValidationLayers)
 	{
-		destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+		destroyDebugUtilsMessengerEXT(instance, debugMessenger, allocator);
 	}
 
-	vkDestroySurfaceKHR(instance, surface, nullptr);
-	vkDestroyInstance(instance, nullptr);
+	vkDestroySurfaceKHR(instance, surface, allocator);
+	vkDestroyInstance(instance, allocator);
 
 	glfwDestroyWindow(window);
 
