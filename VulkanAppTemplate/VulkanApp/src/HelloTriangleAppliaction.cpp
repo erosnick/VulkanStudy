@@ -79,7 +79,8 @@ HelloTriangleApplicaton::HelloTriangleApplicaton()
   minImageCount(0),
   imageCount(0),
   clearColor{ 0.4f, 0.6f, 0.9f, 1.0 },
-  currentFrame(0)
+  currentFrame(0),
+  framebufferResized(false)
 {
 }
 
@@ -175,9 +176,12 @@ void HelloTriangleApplicaton::initWindow()
 	glfwInit();
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	window = glfwCreateWindow(WindowWidth, WindowHeight, "Vulkan window", nullptr, nullptr);
+
+	glfwSetWindowUserPointer(window, this);
+	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
 	glfwSetKeyCallback(window, keyCallback);
 }
@@ -507,6 +511,43 @@ void HelloTriangleApplicaton::createSwapChain()
 	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
 }
 
+void HelloTriangleApplicaton::recreateSwapChain()
+{
+	int32_t width = 0;
+	int32_t height = 0;
+
+	glfwGetFramebufferSize(window, &width, &height);
+
+	while (width == 0 || height == 0)
+	{
+		glfwGetFramebufferSize(window, &width, &height);
+		glfwWaitEvents();
+	}
+
+	vkDeviceWaitIdle(device);
+
+	cleanupSwapChain();
+
+	createSwapChain();
+	createImageViews();
+	createFramebuffers();
+}
+
+void HelloTriangleApplicaton::cleanupSwapChain()
+{
+	for (auto& framebuffer : swapChainFramebuffers)
+	{
+		vkDestroyFramebuffer(device, framebuffer, allocator);
+	}
+
+	for (auto& imageView : swapChainImageViews)
+	{
+		vkDestroyImageView(device, imageView, allocator);
+	}
+
+	vkDestroySwapchainKHR(device, swapChain, allocator);
+}
+
 void HelloTriangleApplicaton::createImageViews()
 {
 	swapChainImageViews.resize(swapChainImages.size());
@@ -833,6 +874,8 @@ void HelloTriangleApplicaton::createCommandPool()
 
 void HelloTriangleApplicaton::createCommandBuffers()
 {
+	commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	commandBufferAllocateInfo.commandPool = commandPool;
@@ -1139,11 +1182,22 @@ void HelloTriangleApplicaton::drawFrame()
 	// value of a 64 bit unsigned integer, UINT64_MAX, which effectively disables the timeout.
 	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-	vkResetFences(device, 1, &inFlightFences[currentFrame]);
-
 	uint32_t imageIndex = 0;
 
-	vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+	auto result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		recreateSwapChain();
+		return;
+	}
+	else
+	{
+		VkCheck(result, "vkAcquireNextImageKHR failed!");
+	}
+
+	// Only reset the fence if we are submitting work
+	vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
 	vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 
@@ -1189,7 +1243,16 @@ void HelloTriangleApplicaton::drawFrame()
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = nullptr;
 
-	vkQueuePresentKHR(presentQueue, &presentInfo);
+	result = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
+	{
+		recreateSwapChain();
+	}
+	else
+	{
+		VkCheck(result, "vkQueuePresentKHR failed!");
+	}
 
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
@@ -1197,6 +1260,8 @@ void HelloTriangleApplicaton::drawFrame()
 void HelloTriangleApplicaton::cleanup()
 {
 	shutdownImGui();
+
+	cleanupSwapChain();
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -1207,25 +1272,13 @@ void HelloTriangleApplicaton::cleanup()
 
 	vkDestroyCommandPool(device, commandPool, allocator);
 
-	for (auto& framebuffer : swapChainFramebuffers)
-	{
-		vkDestroyFramebuffer(device, framebuffer, allocator);
-	}
-
 	vkDestroyPipeline(device, graphicsPipeline, allocator);
 
 	vkDestroyPipelineLayout(device, pipelineLayout, allocator);
 
 	vkDestroyRenderPass(device, renderPass, allocator);
 
-	for (auto& imageView : swapChainImageViews)
-	{
-		vkDestroyImageView(device, imageView, allocator);
-	}
-
 	vkDestroyDescriptorPool(device, descriptorPool, allocator);
-
-	vkDestroySwapchainKHR(device, swapChain, allocator);
 
 	vkDestroyDevice(device, allocator);
 
@@ -1386,4 +1439,11 @@ void HelloTriangleApplicaton::populateDebugMessengerCreateInfo(VkDebugUtilsMesse
 VKAPI_ATTR VkBool32 VKAPI_CALL HelloTriangleApplicaton::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* userData)
 {
 	return VK_FALSE;
+}
+
+void HelloTriangleApplicaton::framebufferResizeCallback(GLFWwindow* window, int width, int height)
+{
+	auto app = reinterpret_cast<HelloTriangleApplicaton*>(glfwGetWindowUserPointer(window));
+
+	app->framebufferResized = true;
 }

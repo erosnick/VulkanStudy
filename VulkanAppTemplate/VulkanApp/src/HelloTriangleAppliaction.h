@@ -83,6 +83,8 @@ private:
 	void createLogicalDevice();
 	void createDescriptorPool();
 	void createSwapChain();
+	void recreateSwapChain();
+	void cleanupSwapChain();
 	void createImageViews();
 	void createRenderPass();
 	void createGraphicsPipeline();
@@ -127,6 +129,8 @@ private:
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* userData);
 
+	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+
 private:
 	struct GLFWwindow* window;
 
@@ -159,4 +163,5 @@ private:
 	uint32_t imageCount;
 	VkClearValue clearColor;
 	uint32_t currentFrame = 0;
+	bool framebufferResized;
 };
