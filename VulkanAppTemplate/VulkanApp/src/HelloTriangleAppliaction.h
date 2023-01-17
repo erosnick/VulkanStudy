@@ -12,8 +12,8 @@
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
 
-const uint32_t WindowWidth = 800;
-const uint32_t WindowHeight = 600;
+const uint32_t WindowWidth = 1600;
+const uint32_t WindowHeight = 900;
 
 const std::vector<const char*> ValidationLayers = { "VK_LAYER_KHRONOS_validation" };
 const std::vector<const char*> DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -21,6 +21,8 @@ const std::vector<const char*> DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_N
 const std::string ResourceBase = "../Assets/";
 
 static ImGui_ImplVulkanH_Window g_MainWindowData;
+
+const int32_t MAX_FRAMES_IN_FLIGHT = 2;
 
 #ifdef NDEBUG
 const bool EnableValidationLayers = false;
@@ -37,7 +39,7 @@ static bool showDemoWindow = true;
 static bool showAnotherWindow = false;
 static ImVec4 clearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-static void check_vk_result(VkResult err)
+static void checkVkResult(VkResult err)
 {
 	if (err == 0)
 		return;
@@ -86,7 +88,7 @@ private:
 	void createGraphicsPipeline();
 	void createFramebuffers();
 	void createCommandPool();
-	void createCommandBuffer();
+	void createCommandBuffers();
 	void createSyncObjects();
 	void recordCommandBuffer(VkCommandBuffer inCommandBuffer, uint32_t imageIndex);
 
@@ -99,7 +101,7 @@ private:
 	void updateImGui();
 	void createImGuiWidgets();
 	void renderImGui();
-	void cleanupImGui();
+	void shutdownImGui();
 
 	bool isDeviceSuitable(VkPhysicalDevice inDevice);
 	int32_t rateDeviceSuitability(VkPhysicalDevice inDevice);
@@ -142,10 +144,10 @@ private:
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 	VkCommandPool commandPool;
-	VkCommandBuffer commandBuffer;
-	VkSemaphore imageAvailableSemaphore;
-	VkSemaphore renderFinishedSemaphore;
-	VkFence inFlightFence;
+	std::vector<VkCommandBuffer> commandBuffers;
+	std::vector<VkSemaphore> imageAvailableSemaphores;
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::vector<VkFence> inFlightFences;
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImageView> swapChainImageViews;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
@@ -156,4 +158,5 @@ private:
 	uint32_t minImageCount;
 	uint32_t imageCount;
 	VkClearValue clearColor;
+	uint32_t currentFrame = 0;
 };

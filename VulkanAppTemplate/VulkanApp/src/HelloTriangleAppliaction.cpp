@@ -69,15 +69,17 @@ HelloTriangleApplicaton::HelloTriangleApplicaton()
   pipelineLayout(VK_NULL_HANDLE),
   graphicsPipeline(VK_NULL_HANDLE),
   commandPool(VK_NULL_HANDLE),
-  commandBuffer(VK_NULL_HANDLE),
-  imageAvailableSemaphore(VK_NULL_HANDLE),
-  renderFinishedSemaphore(VK_NULL_HANDLE),
-  inFlightFence(VK_NULL_HANDLE),
+  commandBuffers{ VK_NULL_HANDLE },
+  imageAvailableSemaphores{ VK_NULL_HANDLE },
+  renderFinishedSemaphores{ VK_NULL_HANDLE },
+  inFlightFences{ VK_NULL_HANDLE },
   swapChainImageFormat(VK_FORMAT_UNDEFINED),
   swapChainExtent{ 0, 0 },
   debugMessenger(VK_NULL_HANDLE),
   minImageCount(0),
-  imageCount(0)
+  imageCount(0),
+  clearColor{ 0.4f, 0.6f, 0.9f, 1.0 },
+  currentFrame(0)
 {
 }
 
@@ -194,7 +196,7 @@ void HelloTriangleApplicaton::initVulkan()
 	createGraphicsPipeline();
 	createFramebuffers();
 	createCommandPool();
-	createCommandBuffer();
+	createCommandBuffers();
 	createSyncObjects();
 }
 
@@ -229,7 +231,7 @@ void HelloTriangleApplicaton::initImGui()
 	initInfo.ImageCount = imageCount;
 	initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 	initInfo.Allocator = allocator;
-	initInfo.CheckVkResultFn = check_vk_result;
+	initInfo.CheckVkResultFn = checkVkResult;
 	ImGui_ImplVulkan_Init(&initInfo, renderPass);
 
 	// Load Fonts
@@ -256,15 +258,15 @@ void HelloTriangleApplicaton::initImGui()
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		VkCheck(vkBeginCommandBuffer(commandBuffer, &beginInfo), "vkBeginCommandBuffer failed!");
+		VkCheck(vkBeginCommandBuffer(commandBuffers[currentFrame], &beginInfo), "vkBeginCommandBuffer failed!");
 
-		ImGui_ImplVulkan_CreateFontsTexture(commandBuffer);
+		ImGui_ImplVulkan_CreateFontsTexture(commandBuffers[currentFrame]);
 
 		VkSubmitInfo endInfo = {};
 		endInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		endInfo.commandBufferCount = 1;
-		endInfo.pCommandBuffers = &commandBuffer;
-		VkCheck(vkEndCommandBuffer(commandBuffer), "vkEndCommandBuffer failed!");
+		endInfo.pCommandBuffers = &commandBuffers[currentFrame];
+		VkCheck(vkEndCommandBuffer(commandBuffers[currentFrame]), "vkEndCommandBuffer failed!");
 		
 		VkCheck(vkQueueSubmit(graphicsQueue, 1, &endInfo, VK_NULL_HANDLE), "vkQueueSubmit failed!");
 
@@ -330,10 +332,10 @@ void HelloTriangleApplicaton::renderImGui()
 	ImDrawData* drawData = ImGui::GetDrawData();
 	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
 	// Record dear imgui primitives into command buffer
-	ImGui_ImplVulkan_RenderDrawData(drawData, commandBuffer);
+	ImGui_ImplVulkan_RenderDrawData(drawData, commandBuffers[currentFrame]);
 }
 
-void HelloTriangleApplicaton::cleanupImGui()
+void HelloTriangleApplicaton::shutdownImGui()
 {
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
@@ -829,7 +831,7 @@ void HelloTriangleApplicaton::createCommandPool()
 	VkCheck(vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool), "Failed to create command pool!");
 }
 
-void HelloTriangleApplicaton::createCommandBuffer()
+void HelloTriangleApplicaton::createCommandBuffers()
 {
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -839,13 +841,17 @@ void HelloTriangleApplicaton::createCommandBuffer()
 	// VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution, but cannot be called from other command buffers.
 	// VK_COMMAND_BUFFER_LEVEL_SECONDARY : Cannot be submitted directly, but can be called from primary command buffers.
 	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
+	commandBufferAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
-	VkCheck(vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer), "lFaied to allocate command buffers!");
+	VkCheck(vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, commandBuffers.data()), "lFaied to allocate command buffers!");
 }
 
 void HelloTriangleApplicaton::createSyncObjects()
 {
+	imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
 	VkSemaphoreCreateInfo semaphoreCreateInfo{};
 	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -862,9 +868,12 @@ void HelloTriangleApplicaton::createSyncObjects()
 	// To do this, we add the VK_FENCE_CREATE_SIGNALED_BIT flag to the VkFenceCreateInfo :
 	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	VkCheck(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphore), "Failed to create semaphores!");
-	VkCheck(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderFinishedSemaphore), "Failed to create semaphores!");
-	VkCheck(vkCreateFence(device, &fenceCreateInfo, nullptr, &inFlightFence), "Failed to create semaphores!");
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		VkCheck(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphores[i]), "Failed to create semaphores!");
+		VkCheck(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderFinishedSemaphores[i]), "Failed to create semaphores!");
+		VkCheck(vkCreateFence(device, &fenceCreateInfo, nullptr, &inFlightFences[i]), "Failed to create semaphores!");
+	}
 }
 
 void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffer, uint32_t imageIndex)
@@ -874,7 +883,7 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	commandBufferBeginInfo.flags = 0;
 	commandBufferBeginInfo.pInheritanceInfo = nullptr;
 
-	VkCheck(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo), "Failed to begin recording command buffer!");
+	VkCheck(vkBeginCommandBuffer(commandBuffers[currentFrame], &commandBufferBeginInfo), "Failed to begin recording command buffer!");
 
 	VkRenderPassBeginInfo renderPassBeginInfo{};
 	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -890,9 +899,9 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	// The final parameter controls how the drawing commands within the render pass will be provided. It can have one of two values:
 	// VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command buffer itselfand no secondary command buffers will be executed.
 	// VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS : The render pass commands will be executed from secondary command buffers.
-	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(commandBuffers[currentFrame], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+	vkCmdBindPipeline(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
@@ -902,13 +911,13 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
-	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+	vkCmdSetViewport(commandBuffers[currentFrame], 0, 1, &viewport);
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
 	scissor.extent = swapChainExtent;
 	
-	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+	vkCmdSetScissor(commandBuffers[currentFrame], 0, 1, &scissor);
 
 	// The actual vkCmdDraw function is a bit anticlimactic, but it's so simple because of all the information we specified in advance. 
 	// It has the following parameters, aside from the command buffer:
@@ -916,13 +925,13 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	// instanceCount : Used for instanced rendering, use 1 if you're not doing that.
 	// firstVertex : Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
 	// firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	vkCmdDraw(commandBuffers[currentFrame], 3, 1, 0, 0);
 
 	renderImGui();
 
-	vkCmdEndRenderPass(commandBuffer);
+	vkCmdEndRenderPass(commandBuffers[currentFrame]);
 
-	VkCheck(vkEndCommandBuffer(commandBuffer), "Failed to record command buffer!");
+	VkCheck(vkEndCommandBuffer(commandBuffers[currentFrame]), "Failed to record command buffer!");
 }
 
 VkShaderModule HelloTriangleApplicaton::createShaderModule(const std::vector<char>& shaderCode)
@@ -1128,22 +1137,22 @@ void HelloTriangleApplicaton::drawFrame()
 	// to be signaled before returning. The VK_TRUE we pass here indicates that we want to wait for all fences, but in 
 	// the case of a single one it doesn't matter. This function also has a timeout parameter that we set to the maximum
 	// value of a 64 bit unsigned integer, UINT64_MAX, which effectively disables the timeout.
-	vkWaitForFences(device, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
+	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-	vkResetFences(device, 1, &inFlightFence);
+	vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
 	uint32_t imageIndex = 0;
 
-	vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+	vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
-	vkResetCommandBuffer(commandBuffer, 0);
+	vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 
-	recordCommandBuffer(commandBuffer, imageIndex);
+	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	
-	VkSemaphore waitSemaphores[] = { imageAvailableSemaphore };
+	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame]};
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
 	// The first three parameters specify which semaphores to wait on before execution begins and in which stage(s)
@@ -1156,15 +1165,15 @@ void HelloTriangleApplicaton::drawFrame()
 	submitInfo.pWaitDstStageMask = waitStages;
 
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
 
 	// The signalSemaphoreCount and pSignalSemaphores parameters specify which semaphores to signal once the command 
 	// buffer(s) have finished execution. In our case we're using the renderFinishedSemaphore for that purpose.
-	VkSemaphore signalSemaphores[] = { renderFinishedSemaphore };
+	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame]};
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	VkCheck(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence), "Failed to submit draw command buffer!b");
+	VkCheck(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]), "Failed to submit draw command buffer!b");
 
 	// The first two parameters specify which semaphores to wait on before presentation can happen, just like VkSubmitInfo. 
 	// Since we want to wait on the command buffer to finish execution, thus our triangle being drawn, we take the semaphores 
@@ -1181,15 +1190,20 @@ void HelloTriangleApplicaton::drawFrame()
 	presentInfo.pResults = nullptr;
 
 	vkQueuePresentKHR(presentQueue, &presentInfo);
+
+	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void HelloTriangleApplicaton::cleanup()
 {
-	cleanupImGui();
+	shutdownImGui();
 
-	vkDestroySemaphore(device, imageAvailableSemaphore, allocator);
-	vkDestroySemaphore(device, renderFinishedSemaphore, allocator);
-	vkDestroyFence(device, inFlightFence, allocator);
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroySemaphore(device, imageAvailableSemaphores[i], allocator);
+		vkDestroySemaphore(device, renderFinishedSemaphores[i], allocator);
+		vkDestroyFence(device, inFlightFences[i], allocator);
+	}
 
 	vkDestroyCommandPool(device, commandPool, allocator);
 

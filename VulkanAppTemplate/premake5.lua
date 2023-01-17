@@ -2,7 +2,9 @@
 workspace "VulkanApp"
     configurations { "Debug", "Release" }    --解决方案配置项，Debug和Release默认配置
     location "Project"                      --解决方案文件夹，这是我自己喜欢用的project简写
-    cppdialect "c++17"
+    cppdialect "c++17"    
+    -- Turn on DPI awareness
+    dpiawareness "High"
 
     --增加平台配置，我希望有Win32和x64两种平台
     platforms
