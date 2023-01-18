@@ -111,10 +111,11 @@ struct QueueFamilyIndices
 {
 	std::optional<uint32_t> graphicsFamily = 0;
 	std::optional<uint32_t> presentFamily = 0;
+	std::optional<uint32_t> transferFamily = 0;
 
 	bool isComplete()
 	{
-		return graphicsFamily.has_value() && presentFamily.has_value();
+		return graphicsFamily.has_value() && presentFamily.has_value() && transferFamily.has_value();
 	}
 };
 
@@ -148,7 +149,8 @@ private:
 	void createRenderPass();
 	void createGraphicsPipeline();
 	void createFramebuffers();
-	void createCommandPool();
+	void createGraphicsCommandPool();
+	void createTransferCommandPool();
 	void createVertexBuffer();
 	void createCommandBuffers();
 	void createSyncObjects();
@@ -157,7 +159,8 @@ private:
 	VkShaderModule createShaderModule(const std::vector<char>& shaderCode);
 
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-	
+	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+
 	void initWindow();
 	void initVulkan();
 	void initImGui();
@@ -205,12 +208,14 @@ private:
 	VkDevice device;
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
+	VkQueue transferQueue;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapChain;
 	VkRenderPass renderPass; 
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
-	VkCommandPool commandPool;
+	VkCommandPool graphicsCommandPool;
+	VkCommandPool transferCommandPool;
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
 	std::vector<VkCommandBuffer> commandBuffers;
