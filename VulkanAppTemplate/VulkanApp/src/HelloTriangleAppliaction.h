@@ -74,8 +74,15 @@ const std::vector<Vertex> vertices =
 
 const std::vector<uint32_t> indices =
 {
-	0, 1, 3,
+	0, 1, 2,
 	2, 3, 0
+};
+
+struct UniformBufferObject
+{
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 projection;
 };
 
 const uint32_t WindowWidth = 1600;
@@ -148,19 +155,22 @@ private:
 	void createSurface();
 	void pickPhysicalDevice();
 	void createLogicalDevice();
-	void createDescriptorPool();
 	void createSwapChain();
 	void recreateSwapChain();
 	void cleanupSwapChain();
 	void createImageViews();
 	void createRenderPass();
+	void createDescriptorSetLayout();
 	void createGraphicsPipeline();
 	void createFramebuffers();
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
 	void createVertexBuffer();
 	void createIndexBuffer();
+	void createUniformBuffers();
 	void createCommandBuffers();
+	void createDescriptorPool();
+	void createDescriptorSets();
 	void createSyncObjects();
 	void recordCommandBuffer(VkCommandBuffer inCommandBuffer, uint32_t imageIndex);
 
@@ -168,6 +178,8 @@ private:
 
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+
+	void updateUniformBuffer(uint32_t frameIndex);
 
 	void initWindow();
 	void initVulkan();
@@ -212,14 +224,14 @@ private:
 
 	VkInstance instance;
 	VkPhysicalDevice physicalDevice;
-	VkDescriptorPool descriptorPool;
 	VkDevice device;
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
 	VkQueue transferQueue;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapChain;
-	VkRenderPass renderPass; 
+	VkRenderPass renderPass;
+	VkDescriptorSetLayout descriptorSetLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 	VkCommandPool graphicsCommandPool;
@@ -228,6 +240,11 @@ private:
 	VkDeviceMemory vertexBufferMemory;
 	VkBuffer indexBuffer;
 	VkDeviceMemory indexBufferMemory;
+	VkDescriptorPool descriptorPool;
+	std::vector<VkDescriptorSet> descriptorSets;
+	std::vector<VkBuffer> uniformBuffers;
+	std::vector<VkDeviceMemory> uniformBuffersMemory;
+	std::vector<void*> uniformBuffersMapped;
 	std::vector<VkCommandBuffer> commandBuffers;
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;

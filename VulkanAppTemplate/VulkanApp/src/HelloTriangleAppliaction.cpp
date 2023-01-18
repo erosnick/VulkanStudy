@@ -7,6 +7,12 @@
 #include <algorithm>
 #include <fstream>
 
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+#include <chrono>
+
 VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) 
 {
 	auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
@@ -36,7 +42,7 @@ std::vector<char> readFile(const std::string& filaName)
 
 	if (!file.is_open())
 	{
-		THROW_ERROR("Failed to open file" + filaName + "!");
+		THROW_ERROR("Failed to open file " + filaName + "!");
 	}
 	
 	auto fileSize = file.tellg();
@@ -63,9 +69,11 @@ HelloTriangleApplicaton::HelloTriangleApplicaton()
   device(VK_NULL_HANDLE),
   graphicsQueue(VK_NULL_HANDLE),
   presentQueue(VK_NULL_HANDLE),
+  transferQueue(VK_NULL_HANDLE),
   surface(VK_NULL_HANDLE),
   swapChain(VK_NULL_HANDLE),
   renderPass(VK_NULL_HANDLE),
+  descriptorSetLayout(VK_NULL_HANDLE),
   pipelineLayout(VK_NULL_HANDLE),
   graphicsPipeline(VK_NULL_HANDLE),
   graphicsCommandPool(VK_NULL_HANDLE),
@@ -74,6 +82,8 @@ HelloTriangleApplicaton::HelloTriangleApplicaton()
   vertexBufferMemory(VK_NULL_HANDLE),
   indexBuffer(VK_NULL_HANDLE),
   indexBufferMemory(VK_NULL_HANDLE),
+  descriptorPool(VK_NULL_HANDLE),
+  descriptorSets{VK_NULL_HANDLE},
   commandBuffers{ VK_NULL_HANDLE },
   imageAvailableSemaphores{ VK_NULL_HANDLE },
   renderFinishedSemaphores{ VK_NULL_HANDLE },
@@ -176,182 +186,12 @@ void HelloTriangleApplicaton::setupDebugMessenger()
 	}
 }
 
-void HelloTriangleApplicaton::initWindow()
+void HelloTriangleApplicaton::createSurface()
 {
-	glfwInit();
-
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-
-	window = glfwCreateWindow(WindowWidth, WindowHeight, "Vulkan window", nullptr, nullptr);
-
-	glfwSetWindowUserPointer(window, this);
-	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-
-	glfwSetKeyCallback(window, keyCallback);
-}
-
-void HelloTriangleApplicaton::initVulkan()
-{
-	createInstance();
-	setupDebugMessenger();
-	createSurface();
-	pickPhysicalDevice();
-	createLogicalDevice();
-	createDescriptorPool();
-	createSwapChain();
-	createImageViews();
-	createRenderPass();
-	createGraphicsPipeline();
-	createFramebuffers();
-	createGraphicsCommandPool();
-	createTransferCommandPool();
-	createVertexBuffer();
-	createIndexBuffer();
-	createCommandBuffers();
-	createSyncObjects();
-}
-
-void HelloTriangleApplicaton::initImGui()
-{
-	// Setup Dear ImGui context
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-	// Setup Dear ImGui style
-	ImGui::StyleColorsDark();
-	//ImGui::StyleColorsLight();
-
-	// Setup Platform/Renderer backends
-	ImGui_ImplGlfw_InitForVulkan(window, true);
-	ImGui_ImplVulkan_InitInfo initInfo = {};
-	initInfo.Instance = instance;
-	initInfo.PhysicalDevice = physicalDevice;
-	initInfo.Device = device;
-
-	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
-
-	initInfo.QueueFamily = queueFamilyIndices.graphicsFamily.value();
-	initInfo.Queue = graphicsQueue;
-	initInfo.PipelineCache = VK_NULL_HANDLE;
-	initInfo.DescriptorPool = descriptorPool;
-	initInfo.Subpass = 0;
-	initInfo.MinImageCount = minImageCount;
-	initInfo.ImageCount = imageCount;
-	initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-	initInfo.Allocator = allocator;
-	initInfo.CheckVkResultFn = checkVkResult;
-	ImGui_ImplVulkan_Init(&initInfo, renderPass);
-
-	// Load Fonts
-	// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-	// - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-	// - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-	// - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-	// - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
-	// - Read 'docs/FONTS.md' for more instructions and details.
-	// - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-	//io.Fonts->AddFontDefault();
-	//io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-	//ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-	//IM_ASSERT(font != NULL);
-	
-	// Upload Fonts
+	if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
 	{
-		// Use any command queue
-		VkCheck(vkResetCommandPool(device, graphicsCommandPool, 0), "vkResetCommandPool failed!");
-
-		VkCommandBufferBeginInfo beginInfo = {};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		VkCheck(vkBeginCommandBuffer(commandBuffers[currentFrame], &beginInfo), "vkBeginCommandBuffer failed!");
-
-		ImGui_ImplVulkan_CreateFontsTexture(commandBuffers[currentFrame]);
-
-		VkSubmitInfo endInfo = {};
-		endInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		endInfo.commandBufferCount = 1;
-		endInfo.pCommandBuffers = &commandBuffers[currentFrame];
-		VkCheck(vkEndCommandBuffer(commandBuffers[currentFrame]), "vkEndCommandBuffer failed!");
-		
-		VkCheck(vkQueueSubmit(graphicsQueue, 1, &endInfo, VK_NULL_HANDLE), "vkQueueSubmit failed!");
-
-		VkCheck(vkDeviceWaitIdle(device), "vkDeviceWaitIdle failed!");
-
-		ImGui_ImplVulkan_DestroyFontUploadObjects();
+		THROW_ERROR("Failed to create window surface!");
 	}
-}
-
-void HelloTriangleApplicaton::updateImGui()
-{
-	// Start the Dear ImGui frame
-	ImGui_ImplVulkan_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
-}
-
-void HelloTriangleApplicaton::createImGuiWidgets()
-{
-	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-	if (showDemoWindow)
-		ImGui::ShowDemoWindow(&showDemoWindow);
-
-	// 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-	{
-		static float f = 0.0f;
-		static int counter = 0;
-
-		ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-		ImGui::Checkbox("Demo Window", &showDemoWindow);      // Edit bools storing our window open/close state
-		ImGui::Checkbox("Another Window", &showAnotherWindow);
-
-		ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-		ImGui::ColorEdit3("clear color", (float*)&clearColor); // Edit 3 floats representing a color
-
-		if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-			counter++;
-		ImGui::SameLine();
-		ImGui::Text("counter = %d", counter);
-
-		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-		ImGui::End();
-	}
-
-	// 3. Show another simple window.
-	if (showAnotherWindow)
-	{
-		ImGui::Begin("Another Window", &showAnotherWindow);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-		ImGui::Text("Hello from another window!");
-		if (ImGui::Button("Close Me"))
-			showAnotherWindow = false;
-		ImGui::End();
-	}
-
-}
-
-void HelloTriangleApplicaton::renderImGui()
-{
-	// Rendering
-	ImGui::Render();
-	ImDrawData* drawData = ImGui::GetDrawData();
-	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
-	// Record dear imgui primitives into command buffer
-	ImGui_ImplVulkan_RenderDrawData(drawData, commandBuffers[currentFrame]);
-}
-
-void HelloTriangleApplicaton::shutdownImGui()
-{
-	ImGui_ImplVulkan_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
 }
 
 void HelloTriangleApplicaton::pickPhysicalDevice()
@@ -430,34 +270,6 @@ void HelloTriangleApplicaton::createLogicalDevice()
 	vkGetDeviceQueue(device, queueFamilyIndices.graphicsFamily.value(), 0, &graphicsQueue);
 	vkGetDeviceQueue(device, queueFamilyIndices.presentFamily.value(), 0, &presentQueue);
 	vkGetDeviceQueue(device, queueFamilyIndices.transferFamily.value(), 0, &transferQueue);
-}
-
-void HelloTriangleApplicaton::createDescriptorPool()
-{
-	// Create Descriptor Pool
-	{
-		VkDescriptorPoolSize poolSizes[] =
-		{
-			{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-		};
-		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-		descriptorPoolCreateInfo.maxSets = 1000 * IM_ARRAYSIZE(poolSizes);
-		descriptorPoolCreateInfo.poolSizeCount = (uint32_t)IM_ARRAYSIZE(poolSizes);
-		descriptorPoolCreateInfo.pPoolSizes = poolSizes;
-		VkCheck(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, allocator, &descriptorPool), "vkCreateDescriptorPool failed!");
-	}
 }
 
 void HelloTriangleApplicaton::createSwapChain()
@@ -654,6 +466,24 @@ void HelloTriangleApplicaton::createRenderPass()
 	VkCheck(vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &renderPass), "Failed to create render pass!");
 }
 
+void HelloTriangleApplicaton::createDescriptorSetLayout()
+{
+	VkDescriptorSetLayoutBinding uboLayoutBinding{};
+	uboLayoutBinding.binding = 0;
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboLayoutBinding.descriptorCount = 1;
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uboLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetlayoutCreateInfo{};
+	descriptorSetlayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetlayoutCreateInfo.bindingCount = 1;
+	descriptorSetlayoutCreateInfo.pBindings = &uboLayoutBinding;
+
+	VkCheck(vkCreateDescriptorSetLayout(device, &descriptorSetlayoutCreateInfo, 
+										allocator, &descriptorSetLayout), "Failed to create descriptor set layout");
+}
+
 void HelloTriangleApplicaton::createGraphicsPipeline()
 {
 	auto vertexShaderCode = readFile(ResourceBase + "Shaders/shader.vert.spv");
@@ -736,7 +566,7 @@ void HelloTriangleApplicaton::createGraphicsPipeline()
 	rasterizationStateCreateInfo.lineWidth = 1.0f;
 
 	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
 	// The rasterizer can alter the depth values by adding a constant value or biasing them based on a fragment's slope. 
 	// This is sometimes used for shadow mapping, but we won't be using it. Just set depthBiasEnable to VK_FALSE.
@@ -796,8 +626,8 @@ void HelloTriangleApplicaton::createGraphicsPipeline()
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.setLayoutCount = 0;
-	pipelineLayoutCreateInfo.pSetLayouts = nullptr;
+	pipelineLayoutCreateInfo.setLayoutCount = 1;
+	pipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 
@@ -956,6 +786,24 @@ void HelloTriangleApplicaton::createIndexBuffer()
 	vkFreeMemory(device, stagingBufferMemory, allocator);
 }
 
+void HelloTriangleApplicaton::createUniformBuffers()
+{
+	VkDeviceSize bufferSize = sizeof (UniformBufferObject);
+
+	uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+	uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+	uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+					 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+								 uniformBuffers[i], uniformBuffersMemory[i]);
+
+		vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+	}
+}
+
 void HelloTriangleApplicaton::createCommandBuffers()
 {
 	commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
@@ -971,6 +819,70 @@ void HelloTriangleApplicaton::createCommandBuffers()
 	commandBufferAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
 	VkCheck(vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, commandBuffers.data()), "lFaied to allocate command buffers!");
+}
+
+void HelloTriangleApplicaton::createDescriptorPool()
+{
+	// Create Descriptor Pool
+	{
+		VkDescriptorPoolSize poolSizes[] =
+		{
+			{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+		};
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+		descriptorPoolCreateInfo.maxSets = 1000 * IM_ARRAYSIZE(poolSizes);
+		descriptorPoolCreateInfo.poolSizeCount = (uint32_t)IM_ARRAYSIZE(poolSizes);
+		descriptorPoolCreateInfo.pPoolSizes = poolSizes;
+		VkCheck(vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, allocator, &descriptorPool), "vkCreateDescriptorPool failed!");
+	}
+}
+
+void HelloTriangleApplicaton::createDescriptorSets()
+{
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo{};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+	descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts.data();
+
+	descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+
+	VkCheck(vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, descriptorSets.data()), "Failed to allocate descriptor sets!");
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = uniformBuffers[i];
+		bufferInfo.offset = 0;
+		bufferInfo.range = sizeof(UniformBufferObject);
+
+		VkWriteDescriptorSet writeDescriptorSet{};
+		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSet.dstSet = descriptorSets[i];
+		writeDescriptorSet.dstBinding = 0;
+		writeDescriptorSet.dstArrayElement = 0;
+		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeDescriptorSet.descriptorCount = 1;
+		writeDescriptorSet.pBufferInfo = &bufferInfo;
+		writeDescriptorSet.pImageInfo = nullptr;
+		writeDescriptorSet.pTexelBufferView = nullptr;
+
+		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+	}
 }
 
 void HelloTriangleApplicaton::createSyncObjects()
@@ -1010,7 +922,7 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	commandBufferBeginInfo.flags = 0;
 	commandBufferBeginInfo.pInheritanceInfo = nullptr;
 
-	VkCheck(vkBeginCommandBuffer(commandBuffers[currentFrame], &commandBufferBeginInfo), "Failed to begin recording command buffer!");
+	VkCheck(vkBeginCommandBuffer(inCommandBuffer, &commandBufferBeginInfo), "Failed to begin recording command buffer!");
 
 	VkRenderPassBeginInfo renderPassBeginInfo{};
 	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1026,9 +938,9 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	// The final parameter controls how the drawing commands within the render pass will be provided. It can have one of two values:
 	// VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command buffer itselfand no secondary command buffers will be executed.
 	// VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS : The render pass commands will be executed from secondary command buffers.
-	vkCmdBeginRenderPass(commandBuffers[currentFrame], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(inCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBindPipeline(commandBuffers[currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+	vkCmdBindPipeline(inCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
@@ -1038,20 +950,22 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
-	vkCmdSetViewport(commandBuffers[currentFrame], 0, 1, &viewport);
+	vkCmdSetViewport(inCommandBuffer, 0, 1, &viewport);
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
 	scissor.extent = swapChainExtent;
 	
-	vkCmdSetScissor(commandBuffers[currentFrame], 0, 1, &scissor);
+	vkCmdSetScissor(inCommandBuffer, 0, 1, &scissor);
 
 	VkBuffer vertexBuffers[]{ vertexBuffer };
 	VkDeviceSize offsets[]{ 0 };
 
-	vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, 1, vertexBuffers, offsets);
+	vkCmdBindVertexBuffers(inCommandBuffer, 0, 1, vertexBuffers, offsets);
 
-	vkCmdBindIndexBuffer(commandBuffers[currentFrame], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindIndexBuffer(inCommandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+	vkCmdBindDescriptorSets(inCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 
 	// The actual vkCmdDraw function is a bit anticlimactic, but it's so simple because of all the information we specified in advance. 
 	// It has the following parameters, aside from the command buffer:
@@ -1059,13 +973,13 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	// instanceCount : Used for instanced rendering, use 1 if you're not doing that.
 	// firstVertex : Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
 	// firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-	vkCmdDrawIndexed(commandBuffers[currentFrame], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(inCommandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 	renderImGui();
 
-	vkCmdEndRenderPass(commandBuffers[currentFrame]);
+	vkCmdEndRenderPass(inCommandBuffer);
 
-	VkCheck(vkEndCommandBuffer(commandBuffers[currentFrame]), "Failed to record command buffer!");
+	VkCheck(vkEndCommandBuffer(inCommandBuffer), "Failed to record command buffer!");
 }
 
 VkShaderModule HelloTriangleApplicaton::createShaderModule(const std::vector<char>& shaderCode)
@@ -1166,12 +1080,202 @@ void HelloTriangleApplicaton::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer,
 	vkFreeCommandBuffers(device, transferCommandPool, 1, &oneTimeCommandBuffer);
 }
 
-void HelloTriangleApplicaton::createSurface()
+void HelloTriangleApplicaton::updateUniformBuffer(uint32_t frameIndex)
 {
-	if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
+	static auto startTime = std::chrono::high_resolution_clock::now();
+
+	auto currentTime = std::chrono::high_resolution_clock::now();
+
+	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+	UniformBufferObject ubo{};
+	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / static_cast<float>(swapChainExtent.height), 0.1f, 100.0f);
+	ubo.projection[1][1] *= -1.0f;
+
+	memcpy_s(uniformBuffersMapped[frameIndex], sizeof(ubo), &ubo, sizeof(ubo));
+}
+
+void HelloTriangleApplicaton::initWindow()
+{
+	glfwInit();
+
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+
+	window = glfwCreateWindow(WindowWidth, WindowHeight, "Vulkan window", nullptr, nullptr);
+
+	glfwSetWindowUserPointer(window, this);
+	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
+	glfwSetKeyCallback(window, keyCallback);
+}
+
+void HelloTriangleApplicaton::initVulkan()
+{
+	createInstance();
+	setupDebugMessenger();
+	createSurface();
+	pickPhysicalDevice();
+	createLogicalDevice();
+	createSwapChain();
+	createImageViews();
+	createRenderPass();
+	createDescriptorSetLayout();
+	createGraphicsPipeline();
+	createFramebuffers();
+	createGraphicsCommandPool();
+	createTransferCommandPool();
+	createVertexBuffer();
+	createIndexBuffer();
+	createUniformBuffers();
+	createDescriptorPool();
+	createDescriptorSets();
+	createCommandBuffers();
+	createSyncObjects();
+}
+
+void HelloTriangleApplicaton::initImGui()
+{
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsLight();
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForVulkan(window, true);
+	ImGui_ImplVulkan_InitInfo initInfo = {};
+	initInfo.Instance = instance;
+	initInfo.PhysicalDevice = physicalDevice;
+	initInfo.Device = device;
+
+	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+	initInfo.QueueFamily = queueFamilyIndices.graphicsFamily.value();
+	initInfo.Queue = graphicsQueue;
+	initInfo.PipelineCache = VK_NULL_HANDLE;
+	initInfo.DescriptorPool = descriptorPool;
+	initInfo.Subpass = 0;
+	initInfo.MinImageCount = minImageCount;
+	initInfo.ImageCount = imageCount;
+	initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+	initInfo.Allocator = allocator;
+	initInfo.CheckVkResultFn = checkVkResult;
+	ImGui_ImplVulkan_Init(&initInfo, renderPass);
+
+	// Load Fonts
+	// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
+	// - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
+	// - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
+	// - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
+	// - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
+	// - Read 'docs/FONTS.md' for more instructions and details.
+	// - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
+	//io.Fonts->AddFontDefault();
+	//io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
+	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
+	//ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
+	//IM_ASSERT(font != NULL);
+
+	// Upload Fonts
 	{
-		THROW_ERROR("Failed to create window surface!");
+		// Use any command queue
+		VkCheck(vkResetCommandPool(device, graphicsCommandPool, 0), "vkResetCommandPool failed!");
+
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		VkCheck(vkBeginCommandBuffer(commandBuffers[currentFrame], &beginInfo), "vkBeginCommandBuffer failed!");
+
+		ImGui_ImplVulkan_CreateFontsTexture(commandBuffers[currentFrame]);
+
+		VkSubmitInfo endInfo = {};
+		endInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		endInfo.commandBufferCount = 1;
+		endInfo.pCommandBuffers = &commandBuffers[currentFrame];
+		VkCheck(vkEndCommandBuffer(commandBuffers[currentFrame]), "vkEndCommandBuffer failed!");
+
+		VkCheck(vkQueueSubmit(graphicsQueue, 1, &endInfo, VK_NULL_HANDLE), "vkQueueSubmit failed!");
+
+		VkCheck(vkDeviceWaitIdle(device), "vkDeviceWaitIdle failed!");
+
+		ImGui_ImplVulkan_DestroyFontUploadObjects();
 	}
+}
+
+void HelloTriangleApplicaton::updateImGui()
+{
+	// Start the Dear ImGui frame
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+}
+
+void HelloTriangleApplicaton::createImGuiWidgets()
+{
+	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+	if (showDemoWindow)
+		ImGui::ShowDemoWindow(&showDemoWindow);
+
+	// 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+	{
+		static float f = 0.0f;
+		static int counter = 0;
+
+		ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+		ImGui::Checkbox("Demo Window", &showDemoWindow);      // Edit bools storing our window open/close state
+		ImGui::Checkbox("Another Window", &showAnotherWindow);
+
+		ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+		ImGui::ColorEdit3("clear color", (float*)&clearColor); // Edit 3 floats representing a color
+
+		if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+			counter++;
+		ImGui::SameLine();
+		ImGui::Text("counter = %d", counter);
+
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::End();
+	}
+
+	// 3. Show another simple window.
+	if (showAnotherWindow)
+	{
+		ImGui::Begin("Another Window", &showAnotherWindow);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+		ImGui::Text("Hello from another window!");
+		if (ImGui::Button("Close Me"))
+			showAnotherWindow = false;
+		ImGui::End();
+	}
+
+}
+
+void HelloTriangleApplicaton::renderImGui()
+{
+	// Rendering
+	ImGui::Render();
+	ImDrawData* drawData = ImGui::GetDrawData();
+	const bool isMinimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
+	// Record dear imgui primitives into command buffer
+	ImGui_ImplVulkan_RenderDrawData(drawData, commandBuffers[currentFrame]);
+}
+
+void HelloTriangleApplicaton::shutdownImGui()
+{
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 }
 
 bool HelloTriangleApplicaton::isDeviceSuitable(VkPhysicalDevice inDevice)
@@ -1395,6 +1499,8 @@ void HelloTriangleApplicaton::drawFrame()
 
 	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
 
+	updateUniformBuffer(currentFrame);
+
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	
@@ -1453,6 +1559,17 @@ void HelloTriangleApplicaton::cleanup()
 {
 	shutdownImGui();
 
+	cleanupSwapChain();
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroyBuffer(device, uniformBuffers[i], allocator);
+		vkUnmapMemory(device, uniformBuffersMemory[i]);
+		vkFreeMemory(device, uniformBuffersMemory[i], allocator);
+	}
+
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+
 	vkDestroyBuffer(device, indexBuffer, allocator);
 
 	vkFreeMemory(device, indexBufferMemory, allocator);
@@ -1461,26 +1578,25 @@ void HelloTriangleApplicaton::cleanup()
 
 	vkFreeMemory(device, vertexBufferMemory, allocator);
 
-	cleanupSwapChain();
-
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		vkDestroySemaphore(device, imageAvailableSemaphores[i], allocator);
 		vkDestroySemaphore(device, renderFinishedSemaphores[i], allocator);
 		vkDestroyFence(device, inFlightFences[i], allocator);
 	}
+	
 
 	vkDestroyCommandPool(device, transferCommandPool, allocator);
 
 	vkDestroyCommandPool(device, graphicsCommandPool, allocator);
+
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, allocator);
 
 	vkDestroyPipeline(device, graphicsPipeline, allocator);
 
 	vkDestroyPipelineLayout(device, pipelineLayout, allocator);
 
 	vkDestroyRenderPass(device, renderPass, allocator);
-
-	vkDestroyDescriptorPool(device, descriptorPool, allocator);
 
 	vkDestroyDevice(device, allocator);
 
