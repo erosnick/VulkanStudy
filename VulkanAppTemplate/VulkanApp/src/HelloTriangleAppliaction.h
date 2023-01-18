@@ -66,9 +66,16 @@ struct Vertex
 
 const std::vector<Vertex> vertices =
 {
-	{ {  0.0f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
-	{ {  0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f } },
-	{ { -0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }}
+	{ { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
+	{ {  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f } },
+	{ {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }},
+	{ { -0.5f,  0.5f }, { 1.0f, 1.0f, 1.0f }}
+};
+
+const std::vector<uint32_t> indices =
+{
+	0, 1, 3,
+	2, 3, 0
 };
 
 const uint32_t WindowWidth = 1600;
@@ -152,6 +159,7 @@ private:
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
 	void createVertexBuffer();
+	void createIndexBuffer();
 	void createCommandBuffers();
 	void createSyncObjects();
 	void recordCommandBuffer(VkCommandBuffer inCommandBuffer, uint32_t imageIndex);
@@ -218,6 +226,8 @@ private:
 	VkCommandPool transferCommandPool;
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
 	std::vector<VkCommandBuffer> commandBuffers;
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;

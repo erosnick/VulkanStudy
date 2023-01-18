@@ -72,6 +72,8 @@ HelloTriangleApplicaton::HelloTriangleApplicaton()
   transferCommandPool(VK_NULL_HANDLE),
   vertexBuffer(VK_NULL_HANDLE),
   vertexBufferMemory(VK_NULL_HANDLE),
+  indexBuffer(VK_NULL_HANDLE),
+  indexBufferMemory(VK_NULL_HANDLE),
   commandBuffers{ VK_NULL_HANDLE },
   imageAvailableSemaphores{ VK_NULL_HANDLE },
   renderFinishedSemaphores{ VK_NULL_HANDLE },
@@ -205,6 +207,7 @@ void HelloTriangleApplicaton::initVulkan()
 	createGraphicsCommandPool();
 	createTransferCommandPool();
 	createVertexBuffer();
+	createIndexBuffer();
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -928,6 +931,31 @@ void HelloTriangleApplicaton::createVertexBuffer()
 	vkFreeMemory(device, stagingBufferMemory, allocator);
 }
 
+void HelloTriangleApplicaton::createIndexBuffer()
+{
+	VkDeviceSize bufferSize = sizeof (indices[0]) * indices.size();
+
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+						  stagingBuffer, stagingBufferMemory);
+
+	void* data = nullptr;
+	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy_s(data, bufferSize, indices.data(), bufferSize);
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+				 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+
+	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+	
+	vkDestroyBuffer(device, stagingBuffer, allocator);
+	vkFreeMemory(device, stagingBufferMemory, allocator);
+}
+
 void HelloTriangleApplicaton::createCommandBuffers()
 {
 	commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
@@ -1023,13 +1051,15 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 
 	vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, 1, vertexBuffers, offsets);
 
+	vkCmdBindIndexBuffer(commandBuffers[currentFrame], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
 	// The actual vkCmdDraw function is a bit anticlimactic, but it's so simple because of all the information we specified in advance. 
 	// It has the following parameters, aside from the command buffer:
 	// vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
 	// instanceCount : Used for instanced rendering, use 1 if you're not doing that.
 	// firstVertex : Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
 	// firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-	vkCmdDraw(commandBuffers[currentFrame], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+	vkCmdDrawIndexed(commandBuffers[currentFrame], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 	renderImGui();
 
@@ -1422,6 +1452,10 @@ void HelloTriangleApplicaton::drawFrame()
 void HelloTriangleApplicaton::cleanup()
 {
 	shutdownImGui();
+
+	vkDestroyBuffer(device, indexBuffer, allocator);
+
+	vkFreeMemory(device, indexBufferMemory, allocator);
 
 	vkDestroyBuffer(device, vertexBuffer, allocator);
 
