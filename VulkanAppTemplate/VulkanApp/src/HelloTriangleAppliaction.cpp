@@ -880,32 +880,15 @@ void HelloTriangleApplicaton::createCommandPool()
 
 void HelloTriangleApplicaton::createVertexBuffer()
 {
-	VkBufferCreateInfo bufferCreateInfo{};
-	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferCreateInfo.size = sizeof(vertices[0]) * vertices.size();
-	bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	bufferCreateInfo.flags = 0;
+	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
-	VkCheck(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &vertexBuffer), "Failed to create vertex buffer!");
-
-	VkMemoryRequirements memoryRequirements;
-	vkGetBufferMemoryRequirements(device, vertexBuffer, &memoryRequirements);
-
-	VkMemoryAllocateInfo allocateInfo{};
-	allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocateInfo.allocationSize = memoryRequirements.size;
-	allocateInfo.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-	VkCheck(vkAllocateMemory(device, &allocateInfo, nullptr, &vertexBufferMemory), "Failed to allocate vertex buffer memory!");
-
-	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+	createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBuffer, vertexBufferMemory);
 
 	void* data = nullptr;
-	vkMapMemory(device, vertexBufferMemory, 0, bufferCreateInfo.size, 0, &data);
+	vkMapMemory(device, vertexBufferMemory, 0, bufferSize, 0, &data);
 
-	memcpy_s(data, bufferCreateInfo.size, vertices.data(), bufferCreateInfo.size);
+	memcpy_s(data, bufferSize, vertices.data(), bufferSize);
 
 	vkUnmapMemory(device, vertexBufferMemory);
 }
@@ -1036,6 +1019,31 @@ VkShaderModule HelloTriangleApplicaton::createShaderModule(const std::vector<cha
 	VkCheck(vkCreateShaderModule(device, &shaderModuleCreateInfo, nullptr, &shaderModule), "Failed to create shader module!");
 
 	return shaderModule;
+}
+
+void HelloTriangleApplicaton::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+{
+	VkBufferCreateInfo bufferCreateInfo{};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = size;
+	bufferCreateInfo.usage = usage;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferCreateInfo.flags = 0;
+
+	VkCheck(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &buffer), "Failed to create vertex buffer!");
+
+	VkMemoryRequirements memoryRequirements;
+	vkGetBufferMemoryRequirements(device, vertexBuffer, &memoryRequirements);
+
+	VkMemoryAllocateInfo allocateInfo{};
+	allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocateInfo.allocationSize = memoryRequirements.size;
+	allocateInfo.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	VkCheck(vkAllocateMemory(device, &allocateInfo, nullptr, &vertexBufferMemory), "Failed to allocate vertex buffer memory!");
+
+	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
 }
 
 void HelloTriangleApplicaton::createSurface()

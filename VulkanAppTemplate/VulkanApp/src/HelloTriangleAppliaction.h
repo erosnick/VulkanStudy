@@ -155,6 +155,8 @@ private:
 	void recordCommandBuffer(VkCommandBuffer inCommandBuffer, uint32_t imageIndex);
 
 	VkShaderModule createShaderModule(const std::vector<char>& shaderCode);
+
+	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	
 	void initWindow();
 	void initVulkan();
