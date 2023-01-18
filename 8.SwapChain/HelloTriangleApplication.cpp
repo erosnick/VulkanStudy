@@ -52,7 +52,7 @@ void HelloTriangleApplication::CreateInstance()
 	ApplicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
 	ApplicationInfo.pEngineName = "No Engine";
 	ApplicationInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	ApplicationInfo.apiVersion = VK_API_VERSION_1_1;
+	ApplicationInfo.apiVersion = VK_API_VERSION_1_3;
 
 	VkInstanceCreateInfo CreateInfo = {};
 	CreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -358,6 +358,7 @@ SwapChainSupprotDetails HelloTriangleApplication::QuerySwapChainSupport(VkPhysic
 
 	if (PresentModeCount != 0)
 	{
+		Details.PresentModes.resize(PresentModeCount);
 		vkGetPhysicalDeviceSurfacePresentModesKHR(Device, Surface, &PresentModeCount, Details.PresentModes.data());
 	}
 

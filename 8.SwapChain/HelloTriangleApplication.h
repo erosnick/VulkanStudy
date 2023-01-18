@@ -23,7 +23,7 @@ const int HEIGHT = 600;
 // 4.将每次函数调用所使用的参数记录到标准的输出中，进行初步的Vulkan概要分析
 
 // Vulkan SDK提供的标准诊断层。
-const std::vector<const char*> ValidationLayers = { "VK_LAYER_LUNARG_standard_validation" };
+const std::vector<const char*> ValidationLayers = { "VK_LAYER_KHRONOS_validation" };
 
 // Swap Chain扩展。
 const std::vector<const char*> DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
