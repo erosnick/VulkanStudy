@@ -69,6 +69,8 @@ HelloTriangleApplicaton::HelloTriangleApplicaton()
   pipelineLayout(VK_NULL_HANDLE),
   graphicsPipeline(VK_NULL_HANDLE),
   commandPool(VK_NULL_HANDLE),
+  vertexBuffer(VK_NULL_HANDLE),
+  vertexBufferMemory(VK_NULL_HANDLE),
   commandBuffers{ VK_NULL_HANDLE },
   imageAvailableSemaphores{ VK_NULL_HANDLE },
   renderFinishedSemaphores{ VK_NULL_HANDLE },
@@ -200,6 +202,7 @@ void HelloTriangleApplicaton::initVulkan()
 	createGraphicsPipeline();
 	createFramebuffers();
 	createCommandPool();
+	createVertexBuffer();
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -689,12 +692,15 @@ void HelloTriangleApplicaton::createGraphicsPipeline()
 	dynamicStatesCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStatesCreateInfo.pDynamicStates = dynamicStates.data();
 
+	auto bindingDescription = Vertex::getBindingDescription();
+	auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo{};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
-	vertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
-	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+	vertexInputStateCreateInfo.pVertexBindingDescriptions = &bindingDescription;
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo{};
 	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -872,6 +878,38 @@ void HelloTriangleApplicaton::createCommandPool()
 	VkCheck(vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool), "Failed to create command pool!");
 }
 
+void HelloTriangleApplicaton::createVertexBuffer()
+{
+	VkBufferCreateInfo bufferCreateInfo{};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = sizeof(vertices[0]) * vertices.size();
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferCreateInfo.flags = 0;
+
+	VkCheck(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &vertexBuffer), "Failed to create vertex buffer!");
+
+	VkMemoryRequirements memoryRequirements;
+	vkGetBufferMemoryRequirements(device, vertexBuffer, &memoryRequirements);
+
+	VkMemoryAllocateInfo allocateInfo{};
+	allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocateInfo.allocationSize = memoryRequirements.size;
+	allocateInfo.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	VkCheck(vkAllocateMemory(device, &allocateInfo, nullptr, &vertexBufferMemory), "Failed to allocate vertex buffer memory!");
+
+	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+
+	void* data = nullptr;
+	vkMapMemory(device, vertexBufferMemory, 0, bufferCreateInfo.size, 0, &data);
+
+	memcpy_s(data, bufferCreateInfo.size, vertices.data(), bufferCreateInfo.size);
+
+	vkUnmapMemory(device, vertexBufferMemory);
+}
+
 void HelloTriangleApplicaton::createCommandBuffers()
 {
 	commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
@@ -962,13 +1000,18 @@ void HelloTriangleApplicaton::recordCommandBuffer(VkCommandBuffer inCommandBuffe
 	
 	vkCmdSetScissor(commandBuffers[currentFrame], 0, 1, &scissor);
 
+	VkBuffer vertexBuffers[]{ vertexBuffer };
+	VkDeviceSize offsets[]{ 0 };
+
+	vkCmdBindVertexBuffers(commandBuffers[currentFrame], 0, 1, vertexBuffers, offsets);
+
 	// The actual vkCmdDraw function is a bit anticlimactic, but it's so simple because of all the information we specified in advance. 
 	// It has the following parameters, aside from the command buffer:
 	// vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
 	// instanceCount : Used for instanced rendering, use 1 if you're not doing that.
 	// firstVertex : Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
 	// firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-	vkCmdDraw(commandBuffers[currentFrame], 3, 1, 0, 0);
+	vkCmdDraw(commandBuffers[currentFrame], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
 	renderImGui();
 
@@ -1161,6 +1204,22 @@ VkExtent2D HelloTriangleApplicaton::chooseSwapChainExtent(const VkSurfaceCapabil
 	}
 }
 
+uint32_t HelloTriangleApplicaton::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags)
+{
+	VkPhysicalDeviceMemoryProperties memoryProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
+
+	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+	{
+		if ((typeFilter & (1 << i)) && (memoryProperties.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags)
+		{
+			return i;
+		}
+	}
+
+	THROW_ERROR("Failed to find suitable memory type!");
+}
+
 void HelloTriangleApplicaton::mainLoop()
 {
 	while (!glfwWindowShouldClose(window)) 
@@ -1260,6 +1319,10 @@ void HelloTriangleApplicaton::drawFrame()
 void HelloTriangleApplicaton::cleanup()
 {
 	shutdownImGui();
+
+	vkDestroyBuffer(device, vertexBuffer, allocator);
+
+	vkFreeMemory(device, vertexBufferMemory, nullptr);
 
 	cleanupSwapChain();
 

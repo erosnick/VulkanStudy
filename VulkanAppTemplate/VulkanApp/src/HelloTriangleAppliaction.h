@@ -8,9 +8,68 @@
 #include <cstdlib>
 #include <vector>
 #include <optional>
+#include <array>
 
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
+
+#include <glm/glm.hpp>
+
+struct Vertex
+{
+	glm::vec2 position;
+	glm::vec3 color;
+
+	static VkVertexInputBindingDescription getBindingDescription()
+	{
+		// All of our per - vertex data is packed together in one array, so we're only going to have one binding. 
+		// The binding parameter specifies the index of the/binding in the array of bindings. The stride parameter
+		// specifies the number of bytes from one entry to the next, and the inputRate parameter can have one of the following values:
+		// VK_VERTEX_INPUT_RATE_VERTEX: Move to the next data entry after each vertex
+		// VK_VERTEX_INPUT_RATE_INSTANCE : Move to the next data entry after each instance
+		VkVertexInputBindingDescription vertexInputBindingDescription{};
+		vertexInputBindingDescription.binding = 0;
+		vertexInputBindingDescription.stride = sizeof(Vertex);
+		vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return vertexInputBindingDescription;
+	}
+
+	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+	{
+		// The binding parameter tells Vulkan from which binding the per - vertex data comes.The location parameter references 
+		// the location directive of the input in the vertex shader.The input in the vertex shader with location 0 is the position,
+		// which has two 32 - bit float components.
+
+		// The format parameter describes the type of data for the attribute. A bit confusingly, the formats are specified using the 
+		// same enumeration as color formats.The following shader types and formats are commonly used together :
+
+		// float : VK_FORMAT_R32_SFLOAT
+		// vec2 : VK_FORMAT_R32G32_SFLOAT
+		// vec3 : VK_FORMAT_R32G32B32_SFLOAT
+		// vec4 : VK_FORMAT_R32G32B32A32_SFLOAT
+		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+		attributeDescriptions[0].binding = 0;
+		attributeDescriptions[0].location = 0;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[0].offset = offsetof(Vertex, position);
+
+		attributeDescriptions[1].binding = 0;
+		attributeDescriptions[1].location = 1;
+		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+		return attributeDescriptions;
+	}
+};
+
+const std::vector<Vertex> vertices =
+{
+	{ {  0.0f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
+	{ {  0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f } },
+	{ { -0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }}
+};
 
 const uint32_t WindowWidth = 1600;
 const uint32_t WindowHeight = 900;
@@ -90,6 +149,7 @@ private:
 	void createGraphicsPipeline();
 	void createFramebuffers();
 	void createCommandPool();
+	void createVertexBuffer();
 	void createCommandBuffers();
 	void createSyncObjects();
 	void recordCommandBuffer(VkCommandBuffer inCommandBuffer, uint32_t imageIndex);
@@ -112,6 +172,7 @@ private:
 	VkSurfaceFormatKHR chooseSwapChainSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 	VkPresentModeKHR chooseSwapChainPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 	VkExtent2D chooseSwapChainExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags);
 
 	void mainLoop();
 	void drawFrame();
@@ -148,6 +209,8 @@ private:
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 	VkCommandPool commandPool;
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
 	std::vector<VkCommandBuffer> commandBuffers;
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
