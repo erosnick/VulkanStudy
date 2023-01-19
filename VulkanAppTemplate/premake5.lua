@@ -55,8 +55,9 @@ project "VulkanApp"
             './ThirdParty/fmt-9.1.0/include',
             '%{IncludeDir.VulkanSDK}',
             './ThirdParty/imgui-1.89.2',
+            './ThirdParty/tinyobjloader',
             './ThirdParty/glm-0.9.9.8/glm',
-            './ThirdParty/glfw-3.3.8.bin.WIN64/include',
+            './ThirdParty/glfw-3.3.8.bin.WIN64/include'
         }
 
 		libdirs 
@@ -83,6 +84,7 @@ project "VulkanApp"
             './ThirdParty/fmt-9.1.0/include',
             '%{IncludeDir.VulkanSDK}',
             './ThirdParty/imgui-1.89.2',
+            './ThirdParty/tinyobjloader',
             './ThirdParty/glm-0.9.9.8/glm',
             './ThirdParty/glfw-3.3.8.bin.WIN64/include'
         }

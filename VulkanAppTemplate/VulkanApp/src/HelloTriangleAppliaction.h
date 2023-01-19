@@ -17,73 +17,28 @@
 
 #include <fmt/format.h>
 
-struct Vertex
+#include "Model.h"
+#include "Camera.h"
+
+const std::vector<Vertex> quadVertices = 
 {
-	glm::vec2 position;
-	glm::vec2 texcoord;
-	glm::vec3 color;
+	{ { -0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
+	{ {  0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+	{ {  0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+	{ { -0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } },
 
-	static VkVertexInputBindingDescription getBindingDescription()
-	{
-		// All of our per - vertex data is packed together in one array, so we're only going to have one binding. 
-		// The binding parameter specifies the index of the/binding in the array of bindings. The stride parameter
-		// specifies the number of bytes from one entry to the next, and the inputRate parameter can have one of the following values:
-		// VK_VERTEX_INPUT_RATE_VERTEX: Move to the next data entry after each vertex
-		// VK_VERTEX_INPUT_RATE_INSTANCE : Move to the next data entry after each instance
-		VkVertexInputBindingDescription vertexInputBindingDescription{};
-		vertexInputBindingDescription.binding = 0;
-		vertexInputBindingDescription.stride = sizeof(Vertex);
-		vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		return vertexInputBindingDescription;
-	}
-
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
-	{
-		// The binding parameter tells Vulkan from which binding the per - vertex data comes.The location parameter references 
-		// the location directive of the input in the vertex shader.The input in the vertex shader with location 0 is the position,
-		// which has two 32 - bit float components.
-
-		// The format parameter describes the type of data for the attribute. A bit confusingly, the formats are specified using the 
-		// same enumeration as color formats.The following shader types and formats are commonly used together :
-
-		// float : VK_FORMAT_R32_SFLOAT
-		// vec2 : VK_FORMAT_R32G32_SFLOAT
-		// vec3 : VK_FORMAT_R32G32B32_SFLOAT
-		// vec4 : VK_FORMAT_R32G32B32A32_SFLOAT
-		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-
-		attributeDescriptions[0].binding = 0;
-		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[0].offset = offsetof(Vertex, position);
-
-		attributeDescriptions[1].binding = 0;
-		attributeDescriptions[1].location = 1;
-		attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[1].offset = offsetof(Vertex, texcoord);
-
-		attributeDescriptions[2].binding = 0;
-		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex, color);
-
-		return attributeDescriptions;
-	}
+	{ { -0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f }},
+	{ {  0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f }},
+	{ {  0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }},
+	{ { -0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }}
 };
 
-const std::vector<Vertex> vertices =
-{
-	{ { -0.5f, -0.5f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
-	{ {  0.5f, -0.5f }, { 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
-	{ {  0.5f,  0.5f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
-	{ { -0.5f,  0.5f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } }
-};
-
-const std::vector<uint32_t> indices =
+const std::vector<uint32_t> quadIndices =
 {
 	0, 1, 2,
-	2, 3, 0
+	2, 3, 0,
+	4, 5, 6,
+	6, 7, 4
 };
 
 struct UniformBufferObject
@@ -105,6 +60,10 @@ static ImGui_ImplVulkanH_Window g_MainWindowData;
 
 const int32_t MAX_FRAMES_IN_FLIGHT = 2;
 
+static bool rightMouseButtonDown = false;
+
+static glm::vec2 lastMousePosition;
+
 #ifdef NDEBUG
 const bool EnableValidationLayers = false;
 #else
@@ -122,7 +81,7 @@ std::string VkResultToString(VkResult result);
 // Our state
 static bool showDemoWindow = true;
 static bool showAnotherWindow = false;
-static ImVec4 clearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+static ImVec4 clearColor = ImVec4(0.4f, 0.6f, 0.9f, 1.0f);
 
 static void checkVkResult(VkResult err)
 {
@@ -177,11 +136,12 @@ private:
 	void createFramebuffers();
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
+	void createDepthResources();
 	void createTextureImage();
 	void createTextureImageView();
 	void createTextureSampler();
-	void createVertexBuffer();
-	void createIndexBuffer();
+	void createVertexBuffer(const std::vector<Vertex>& vertices);
+	void createIndexBuffer(const std::vector<uint32_t>& indices);
 	void createUniformBuffers();
 	void createCommandBuffers();
 	void createDescriptorPool();
@@ -197,7 +157,7 @@ private:
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
 					 VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory);
 
-	VkImageView createImageView(VkImage image, VkFormat format);
+	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 
@@ -206,6 +166,8 @@ private:
 	VkCommandBuffer beginSingleTimeCommands();
 
 	void endSingleTimeCommands(VkCommandBuffer inCommandBuffer);
+
+	void loadResources();
 
 	void updateFPSCounter();
 	void updateUniformBuffer(uint32_t frameIndex);
@@ -235,6 +197,13 @@ private:
 
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags);
 
+	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+
+	VkFormat findDepthFormat();
+
+	bool hasStencilComponent(VkFormat format) { return format == VK_FORMAT_D32_SFLOAT_S8_UINT || 
+													   format == VK_FORMAT_D24_UNORM_S8_UINT; };
+
 	void mainLoop();
 	void drawFrame();
 	void cleanup();
@@ -251,7 +220,10 @@ private:
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* userData);
 
-	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+	static void framebufferResizeCallback(GLFWwindow* inWindow, int width, int height);
+	static void mouseMoveCallback(GLFWwindow* inWindow, double xpos, double ypos);
+	static void mouseScrollCallback(GLFWwindow* inWindow, double xoffset, double yoffset);
+	static void mouseButtonCallback(GLFWwindow* inWindow, int32_t button, int32_t action, int32_t mods);
 
 private:
 	struct GLFWwindow* window;
@@ -281,6 +253,9 @@ private:
 	VkDeviceMemory textureImageMemory;
 	VkImageView textureImageView;
 	VkSampler textureSampler;
+	VkImage depthImage;
+	VkDeviceMemory depthImageMemory;
+	VkImageView depthImageView;
 	std::vector<VkDescriptorSet> descriptorSets;
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
@@ -298,10 +273,12 @@ private:
 
 	uint32_t minImageCount;
 	uint32_t imageCount;
-	VkClearValue clearColor;
 	uint32_t currentFrame = 0;
 	bool framebufferResized;
 
-	float frameTime;
+	float deltaTime;
 	int32_t frameCount;
+
+	Model model;
+	Camera camera{{ 0.0f, 1.0f, 3.0f }};
 };

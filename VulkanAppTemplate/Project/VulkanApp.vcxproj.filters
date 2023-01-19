@@ -9,7 +9,16 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\VulkanApp\src\Camera.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
     <ClInclude Include="..\VulkanApp\src\HelloTriangleAppliaction.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\Model.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\glm.h">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>
@@ -18,6 +27,9 @@
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\ImGui\ImGuiBuild.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\Model.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\main.cpp">
