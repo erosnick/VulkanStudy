@@ -64,6 +64,8 @@ static bool rightMouseButtonDown = false;
 
 static glm::vec2 lastMousePosition;
 
+const float FrameTime = 0.0166667f;
+
 #ifdef NDEBUG
 const bool EnableValidationLayers = false;
 #else
@@ -208,7 +210,7 @@ private:
 	void drawFrame();
 	void cleanup();
 
-	void processInput();
+	void processInput(float deltaTime);
 
 	bool checkExtensionSupport();
 	bool checkDeviceExtensionSupport(VkPhysicalDevice inDevice);
@@ -276,7 +278,6 @@ private:
 	uint32_t currentFrame = 0;
 	bool framebufferResized;
 
-	float deltaTime;
 	int32_t frameCount;
 
 	Model model;

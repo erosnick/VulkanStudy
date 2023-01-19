@@ -231,7 +231,6 @@ HelloTriangleApplicaton::HelloTriangleApplicaton()
   imageCount(0),
   currentFrame(0),
   framebufferResized(false),
-  deltaTime(0.0f),
   frameCount(0)
 {
 }
@@ -1553,8 +1552,6 @@ void HelloTriangleApplicaton::updateUniformBuffer(uint32_t frameIndex)
 
 	auto time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-	deltaTime = time / 1000.0f;
-
 	UniformBufferObject ubo{};
 	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	ubo.model = glm::mat4(1.0f);
@@ -1967,18 +1964,17 @@ VkFormat HelloTriangleApplicaton::findDepthFormat()
 void HelloTriangleApplicaton::mainLoop()
 {
 	static auto startTime = std::chrono::high_resolution_clock::now().time_since_epoch(); 
-	static auto simulationTime = std::chrono::duration<float, std::chrono::milliseconds::period>(startTime).count();
+	static auto simulationTime = std::chrono::duration<float, std::chrono::seconds::period>(startTime).count();
 
 	while (!glfwWindowShouldClose(window))
 	{
 		auto currentTime = std::chrono::high_resolution_clock::now().time_since_epoch();
-		auto realTime = std::chrono::duration<float, std::chrono::milliseconds::period>(currentTime).count();
-
+		auto realTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime).count();
 
 		while (simulationTime < realTime)
 		{
-			simulationTime += 16.0f;
-			processInput();
+			simulationTime += FrameTime;
+			processInput(FrameTime);
 		}
 
 		glfwPollEvents();
@@ -2141,7 +2137,7 @@ void HelloTriangleApplicaton::cleanup()
 	glfwTerminate();
 }
 
-void HelloTriangleApplicaton::processInput()
+void HelloTriangleApplicaton::processInput(float deltaTime)
 {
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 	{
