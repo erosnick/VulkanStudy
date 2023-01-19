@@ -166,7 +166,7 @@ private:
 	VkDevice LogicalDevice;
 	VkQueue GraphicQueue;
 	VkQueue PresentQueue;
-	VkSwapchainKHR SwapChain;
+	VkSwapchainKHR SwapChain = VK_NULL_HANDLE;
 	std::vector<VkImage> SwapChainImages;
 	VkFormat SwapChainImageFormat;
 	VkExtent2D SwapChainExtent;

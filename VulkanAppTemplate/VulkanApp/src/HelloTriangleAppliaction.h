@@ -15,9 +15,12 @@
 
 #include <glm/glm.hpp>
 
+#include <fmt/format.h>
+
 struct Vertex
 {
 	glm::vec2 position;
+	glm::vec2 texcoord;
 	glm::vec3 color;
 
 	static VkVertexInputBindingDescription getBindingDescription()
@@ -35,7 +38,7 @@ struct Vertex
 		return vertexInputBindingDescription;
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
 	{
 		// The binding parameter tells Vulkan from which binding the per - vertex data comes.The location parameter references 
 		// the location directive of the input in the vertex shader.The input in the vertex shader with location 0 is the position,
@@ -48,7 +51,7 @@ struct Vertex
 		// vec2 : VK_FORMAT_R32G32_SFLOAT
 		// vec3 : VK_FORMAT_R32G32B32_SFLOAT
 		// vec4 : VK_FORMAT_R32G32B32A32_SFLOAT
-		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 
 		attributeDescriptions[0].binding = 0;
 		attributeDescriptions[0].location = 0;
@@ -57,8 +60,13 @@ struct Vertex
 
 		attributeDescriptions[1].binding = 0;
 		attributeDescriptions[1].location = 1;
-		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[1].offset = offsetof(Vertex, color);
+		attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[1].offset = offsetof(Vertex, texcoord);
+
+		attributeDescriptions[2].binding = 0;
+		attributeDescriptions[2].location = 2;
+		attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[2].offset = offsetof(Vertex, color);
 
 		return attributeDescriptions;
 	}
@@ -66,10 +74,10 @@ struct Vertex
 
 const std::vector<Vertex> vertices =
 {
-	{ { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
-	{ {  0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f } },
-	{ {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f }},
-	{ { -0.5f,  0.5f }, { 1.0f, 1.0f, 1.0f }}
+	{ { -0.5f, -0.5f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
+	{ {  0.5f, -0.5f }, { 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+	{ {  0.5f,  0.5f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+	{ { -0.5f,  0.5f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } }
 };
 
 const std::vector<uint32_t> indices =
@@ -105,7 +113,11 @@ const bool EnableValidationLayers = true;
 
 #define THROW_ERROR(message) throw std::runtime_error(message);
 
-#define VkCheck(result, message) if (result != VK_SUCCESS) { THROW_ERROR(message) }
+std::string VkResultToString(VkResult result);
+
+#define VkCheck(result, message) if (result != VK_SUCCESS) { fmt::print("{}\n", VkResultToString(result)); THROW_ERROR(message) }
+
+#define VectorSize(type, vector) sizeof(type) * vector.size()
 
 // Our state
 static bool showDemoWindow = true;
@@ -165,6 +177,9 @@ private:
 	void createFramebuffers();
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
+	void createTextureImage();
+	void createTextureImageView();
+	void createTextureSampler();
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createUniformBuffers();
@@ -179,6 +194,20 @@ private:
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
+	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+					 VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory);
+
+	VkImageView createImageView(VkImage image, VkFormat format);
+
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+
+	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+
+	VkCommandBuffer beginSingleTimeCommands();
+
+	void endSingleTimeCommands(VkCommandBuffer inCommandBuffer);
+
+	void updateFPSCounter();
 	void updateUniformBuffer(uint32_t frameIndex);
 
 	void initWindow();
@@ -191,12 +220,19 @@ private:
 	void shutdownImGui();
 
 	bool isDeviceSuitable(VkPhysicalDevice inDevice);
+
 	int32_t rateDeviceSuitability(VkPhysicalDevice inDevice);
+
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice inDevice);
+
 	SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice inDevice);
+
 	VkSurfaceFormatKHR chooseSwapChainSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+
 	VkPresentModeKHR chooseSwapChainPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+
 	VkExtent2D chooseSwapChainExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags);
 
 	void mainLoop();
@@ -241,6 +277,10 @@ private:
 	VkBuffer indexBuffer;
 	VkDeviceMemory indexBufferMemory;
 	VkDescriptorPool descriptorPool;
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+	VkImageView textureImageView;
+	VkSampler textureSampler;
 	std::vector<VkDescriptorSet> descriptorSets;
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
@@ -261,4 +301,7 @@ private:
 	VkClearValue clearColor;
 	uint32_t currentFrame = 0;
 	bool framebufferResized;
+
+	float frameTime;
+	int32_t frameCount;
 };

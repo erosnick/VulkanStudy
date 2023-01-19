@@ -77,6 +77,8 @@ void HelloTriangleApplication::CreateInstance()
 	{
 		throw std::runtime_error("Failed to create instance!");
 	}
+
+	std::cout << "CreateInstance" << std::endl;
 }
 
 void HelloTriangleApplication::CheckExtensions()
@@ -207,7 +209,7 @@ void HelloTriangleApplication::InitWindow()
 	// 所以在这里我们需要告诉它不要调用OpenGL相关的初始化操作。
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	Window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
 }
@@ -374,7 +376,7 @@ VkSurfaceFormatKHR HelloTriangleApplication::ChooseSwapSurfaceFormat(const std::
 
 	for (const auto& AvailableFormat : AvailableFormats)
 	{
-		if (AvailableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && AvailableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		if (AvailableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && AvailableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 		{
 			return AvailableFormat;
 		}
