@@ -2139,6 +2139,19 @@ void HelloTriangleApplicaton::cleanup()
 
 void HelloTriangleApplicaton::processInput(float deltaTime)
 {
+	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) 
+	{
+		camera.SetMaxSpeed();
+	}
+	else if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+	{
+		camera.SetMinSpeed();
+	}
+	else
+	{
+		camera.SetNormalSpeed();
+	}
+
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 	{
 		camera.ProcessKeyboard(FORWARD, deltaTime);
