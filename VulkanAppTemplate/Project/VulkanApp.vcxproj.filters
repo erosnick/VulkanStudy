@@ -15,7 +15,13 @@
     <ClInclude Include="..\VulkanApp\src\HelloTriangleAppliaction.h">
       <Filter>Headers</Filter>
     </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\LoadModelObj.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
     <ClInclude Include="..\VulkanApp\src\Model.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\SimpleModel.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="..\VulkanApp\src\glm.h">
@@ -23,13 +29,52 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\ThirdParty\VulkanMemoryAllocator\src\vk_mem_alloc.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\volk\src\volk.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="..\VulkanApp\src\HelloTriangleAppliaction.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\ImGui\ImGuiBuild.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\LoadModelObj.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="..\VulkanApp\src\Model.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\allocator.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\context_helpers.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\error.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\to_string.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\vkbuffer.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\vkimage.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\vkobject.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\vkutil.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\vulkan_context.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\vulkan_window.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\main.cpp">

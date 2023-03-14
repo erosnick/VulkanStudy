@@ -33,7 +33,9 @@ project "VulkanApp"
     files 
     { 
         "%{prj.name}/src/**.h", 
-        "%{prj.name}/src/**.cpp" 
+        "%{prj.name}/src/**.cpp",
+        "ThirdParty/volk/src/volk.c",
+        "ThirdParty/VulkanMemoryAllocator/src/vk_mem_alloc.cpp"
     }                                       --指定加载哪些文件或哪些类型的文件
 
     vpaths 
@@ -52,17 +54,20 @@ project "VulkanApp"
         includedirs 
         { 
             './ThirdParty/stb',
-            './ThirdParty/fmt-9.1.0/include',
             '%{IncludeDir.VulkanSDK}',
+            './ThirdParty/volk/include',
             './ThirdParty/imgui-1.89.2',
             './ThirdParty/tinyobjloader',
             './ThirdParty/glm-0.9.9.8/glm',
-            './ThirdParty/glfw-3.3.8.bin.WIN64/include'
+            './ThirdParty/fmt-9.1.0/include',
+            './ThirdParty/rapidobj-1.0.1/include',
+            './ThirdParty/glfw-3.3.8.bin.WIN64/include',
+            './ThirdParty/VulkanMemoryAllocator/include'
         }
 
 		libdirs 
         { 
-            './ThirdParty/glfw-3.3.8.bin.WIN64/lib-vc2022',
+            './ThirdParty/glfw-3.3.8.bin.WIN64/lib-vc2022'
         }
 
 		links 
@@ -81,17 +86,20 @@ project "VulkanApp"
         includedirs 
         { 
             './ThirdParty/stb',
-            './ThirdParty/fmt-9.1.0/include',
             '%{IncludeDir.VulkanSDK}',
+            './ThirdParty/volk/include',
             './ThirdParty/imgui-1.89.2',
             './ThirdParty/tinyobjloader',
             './ThirdParty/glm-0.9.9.8/glm',
-            './ThirdParty/glfw-3.3.8.bin.WIN64/include'
+            './ThirdParty/fmt-9.1.0/include',
+            './ThirdParty/rapidobj-1.0.1/include',
+            './ThirdParty/glfw-3.3.8.bin.WIN64/include',
+            './ThirdParty/VulkanMemoryAllocator/include'
         }
 
 		libdirs 
         { 
-            './ThirdParty/glfw-3.3.8.bin.WIN64/lib-vc2022',
+            './ThirdParty/glfw-3.3.8.bin.WIN64/lib-vc2022'
         }
 
 		links 

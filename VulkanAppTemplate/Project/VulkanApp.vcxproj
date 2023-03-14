@@ -98,7 +98,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>DEBUG;FMT_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\ThirdParty\stb;..\ThirdParty\fmt-9.1.0\include;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThirdParty\stb;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -119,7 +119,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>DEBUG;FMT_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\ThirdParty\stb;..\ThirdParty\fmt-9.1.0\include;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThirdParty\stb;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -140,7 +140,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>NDEBUG;FMT_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\ThirdParty\stb;..\ThirdParty\fmt-9.1.0\include;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThirdParty\stb;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -165,7 +165,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>NDEBUG;FMT_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\ThirdParty\stb;..\ThirdParty\fmt-9.1.0\include;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThirdParty\stb;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -188,13 +188,28 @@
   <ItemGroup>
     <ClInclude Include="..\VulkanApp\src\Camera.h" />
     <ClInclude Include="..\VulkanApp\src\HelloTriangleAppliaction.h" />
+    <ClInclude Include="..\VulkanApp\src\LoadModelObj.h" />
     <ClInclude Include="..\VulkanApp\src\Model.h" />
+    <ClInclude Include="..\VulkanApp\src\SimpleModel.h" />
     <ClInclude Include="..\VulkanApp\src\glm.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\ThirdParty\VulkanMemoryAllocator\src\vk_mem_alloc.cpp" />
+    <ClCompile Include="..\ThirdParty\volk\src\volk.c" />
     <ClCompile Include="..\VulkanApp\src\HelloTriangleAppliaction.cpp" />
     <ClCompile Include="..\VulkanApp\src\ImGui\ImGuiBuild.cpp" />
+    <ClCompile Include="..\VulkanApp\src\LoadModelObj.cpp" />
     <ClCompile Include="..\VulkanApp\src\Model.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\allocator.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\context_helpers.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\error.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\to_string.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\vkbuffer.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\vkimage.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\vkobject.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\vkutil.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\vulkan_context.cpp" />
+    <ClCompile Include="..\VulkanApp\src\labutils\vulkan_window.cpp" />
     <ClCompile Include="..\VulkanApp\src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
