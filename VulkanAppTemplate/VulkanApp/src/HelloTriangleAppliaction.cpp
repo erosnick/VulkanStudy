@@ -299,6 +299,9 @@ void HelloTriangleApplicaton::createInstance()
 	
 	VkCheck(vkCreateInstance(&instanceCreateInfo, allocator, &instance), "Failed to create instance!");
 
+	// Load rest of the Vulkan API
+	volkLoadInstance(instance);
+
 	checkExtensionSupport();
 }
 
@@ -1582,6 +1585,7 @@ void HelloTriangleApplicaton::initWindow()
 
 void HelloTriangleApplicaton::initVulkan()
 {
+	volkInitialize();
 	createInstance();
 	setupDebugMessenger();
 	createSurface();

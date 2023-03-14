@@ -1,6 +1,3 @@
-#include "backends/imgui_impl_glfw.h"
-#include "backends/imgui_impl_vulkan.h"
-
 #include "HelloTriangleAppliaction.h"
 
 #define IMGUI_UNLIMITED_FRAME_RATE
