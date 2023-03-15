@@ -22,8 +22,9 @@
 
 #include "Model.h"
 #include "Camera.h"
+#include "SimpleModel.h"
 
-const std::vector<Vertex> quadVertices = 
+const std::vector<Vertex> quadVertices =
 {
 	{ { -0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
 	{ {  0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
@@ -49,6 +50,22 @@ struct UniformBufferObject
 	glm::mat4 model;
 	glm::mat4 view;
 	glm::mat4 projection;
+};
+
+struct MaterialUniformBufferObject
+{
+	glm::vec4 diffuseColor = glm::vec4(0.0f);
+	glm::vec4 padding = glm::vec4(0.0f);
+};
+
+enum class Channel : int32_t
+{
+	Default = 0, // only used for desired_channels
+
+	Grey = 1,
+	GreyAlpha = 2,
+	RGB = 3,
+	RGBAlpha = 4
 };
 
 const uint32_t WindowWidth = 1600;
@@ -116,11 +133,31 @@ struct SwapChainSupportDetails
 	std::vector<VkPresentModeKHR> presentModes;
 };
 
-class HelloTriangleApplicaton
+struct MeshGeometry
+{
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+	VkImageView textureImageView;
+	VkImage alphaTextureImage;
+	VkDeviceMemory alphaTextureImageMemory;
+	VkImageView alphaTextureImageView;
+	uint32_t vertexCount;
+	uint32_t indexCount;
+	bool hasTexture = false;
+	bool hasAlphaTexture = false;
+	bool dirty = true;
+	std::shared_ptr<Material> material;
+};
+
+class VulkanApplication
 {
 public:
-	HelloTriangleApplicaton();
-	~HelloTriangleApplicaton();
+	VulkanApplication();
+	~VulkanApplication();
 
 	void run();
 private:
@@ -142,12 +179,17 @@ private:
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
 	void createDepthResources();
-	void createTextureImage();
-	void createTextureImageView();
+	VkImage createTextureImage(VkDeviceMemory& imageMemory, const std::string& path, Channel requireChannels = Channel::RGBAlpha);
+	VkImageView createTextureImageView(VkImage image);
 	void createTextureSampler();
-	void createVertexBuffer(const std::vector<Vertex>& vertices);
-	void createIndexBuffer(const std::vector<uint32_t>& indices);
+	VkBuffer createVertexBuffer(const std::vector<Vertex>& vertices, VkDeviceMemory& vertexBufferMemory);
+	VkBuffer createIndexBuffer(const std::vector<uint32_t>& indices, VkDeviceMemory& indexBufferMemory);
+	std::unique_ptr<MeshGeometry> createMeshGeometry(const Mesh& mesh);
+	std::unique_ptr<MeshGeometry> createMeshGeometry(const SimpleMeshInfo& mesh);
+	void createMeshGeometries(const Model& model);
+	void createMeshGeometries(const SimpleModel& model);
 	void createUniformBuffers();
+	void createMaterialUniformBuffers();
 	void createCommandBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
@@ -159,12 +201,12 @@ private:
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
-	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
-					 VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory);
+	void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling,
+		VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory);
 
-	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
 
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 
@@ -172,10 +214,14 @@ private:
 
 	void endSingleTimeCommands(VkCommandBuffer inCommandBuffer);
 
+	void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t width, int32_t height, uint32_t mipLevels);
+
 	void loadResources();
 
 	void updateFPSCounter();
-	void updateUniformBuffer(uint32_t frameIndex);
+	void updateObjectUniformBuffer(uint32_t frameIndex);
+	void updateMaterialUniformBuffer(uint32_t frameIndex, uint32_t index, const MaterialUniformBufferObject& materialUniformBufferObject);
+	void updateImageView(VkImageView imageView, VkImageView alphaImageView, uint32_t frameIndex);
 
 	void initWindow();
 	void initVulkan();
@@ -206,8 +252,10 @@ private:
 
 	VkFormat findDepthFormat();
 
-	bool hasStencilComponent(VkFormat format) { return format == VK_FORMAT_D32_SFLOAT_S8_UINT || 
-													   format == VK_FORMAT_D24_UNORM_S8_UINT; };
+	bool hasStencilComponent(VkFormat format) {
+		return format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
+			format == VK_FORMAT_D24_UNORM_S8_UINT;
+	};
 
 	void mainLoop();
 	void drawFrame();
@@ -223,7 +271,7 @@ private:
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-	VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* userData);
+		VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* userData);
 
 	static void framebufferResizeCallback(GLFWwindow* inWindow, int width, int height);
 	static void mouseMoveCallback(GLFWwindow* inWindow, double xpos, double ypos);
@@ -249,10 +297,6 @@ private:
 	VkPipeline graphicsPipeline;
 	VkCommandPool graphicsCommandPool;
 	VkCommandPool transferCommandPool;
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexBufferMemory;
 	VkDescriptorPool descriptorPool;
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
@@ -262,9 +306,12 @@ private:
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
 	std::vector<VkDescriptorSet> descriptorSets;
-	std::vector<VkBuffer> uniformBuffers;
-	std::vector<VkDeviceMemory> uniformBuffersMemory;
-	std::vector<void*> uniformBuffersMapped;
+	std::vector<VkBuffer> objectUniformBuffers;
+	std::vector<VkDeviceMemory> objectUniformBuffersMemory;
+	std::vector<void*> objectUniformBuffersMapped;
+	std::vector<VkBuffer> materialUniformBuffers;
+	std::vector<VkDeviceMemory> materialUniformBuffersMemory;
+	std::vector<void*> materialUniformBuffersMapped;
 	std::vector<VkCommandBuffer> commandBuffers;
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -284,5 +331,15 @@ private:
 	int32_t frameCount;
 
 	Model model;
-	Camera camera{{ 0.0f, 1.0f, 3.0f }};
+	Camera camera{ glm::vec3(0.0f, 1.0f, 3.0f) };
+
+	std::vector<std::unique_ptr<MeshGeometry>> meshGeometries;
+	std::vector<VkImageView> imageViews;
+
+	SimpleModel objModel;
+
+	size_t dynamicAlignment = 0;
+	uint32_t mipLevels = 1;
+
+	bool anisotropyEnable = true;
 };

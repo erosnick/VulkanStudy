@@ -22,6 +22,7 @@ struct SimpleMaterialInfo
 
 	glm::vec3 diffuseColor;
 	std::string diffuseTexturePath;
+	std::string alphaTexturePath;
 };
 
 // A simple mesh
@@ -42,10 +43,11 @@ struct SimpleMaterialInfo
 struct SimpleMeshInfo
 {
 	std::string meshName;  // This is purely informational and for debugging
-	
+
 	std::size_t materialIndex;
 
 	bool textured : 1;
+	bool alphaTextured : 1;
 
 	std::size_t vertexStartIndex;
 	std::size_t vertexCount;

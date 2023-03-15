@@ -187,7 +187,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\VulkanApp\src\Camera.h" />
-    <ClInclude Include="..\VulkanApp\src\HelloTriangleAppliaction.h" />
+    <ClInclude Include="..\VulkanApp\src\VulkanApplication.h" />
     <ClInclude Include="..\VulkanApp\src\LoadModelObj.h" />
     <ClInclude Include="..\VulkanApp\src\Model.h" />
     <ClInclude Include="..\VulkanApp\src\SimpleModel.h" />
@@ -196,7 +196,7 @@
   <ItemGroup>
     <ClCompile Include="..\ThirdParty\VulkanMemoryAllocator\src\vk_mem_alloc.cpp" />
     <ClCompile Include="..\ThirdParty\volk\src\volk.c" />
-    <ClCompile Include="..\VulkanApp\src\HelloTriangleAppliaction.cpp" />
+    <ClCompile Include="..\VulkanApp\src\VulkanApplication.cpp" />
     <ClCompile Include="..\VulkanApp\src\ImGui\ImGuiBuild.cpp" />
     <ClCompile Include="..\VulkanApp\src\LoadModelObj.cpp" />
     <ClCompile Include="..\VulkanApp\src\Model.cpp" />

@@ -1,4 +1,4 @@
-#include "HelloTriangleAppliaction.h"
+#include "VulkanApplication.h"
 
 #define IMGUI_UNLIMITED_FRAME_RATE
 #ifdef _DEBUG
@@ -7,7 +7,7 @@
 
 int main() 
 {
-    HelloTriangleApplicaton app;
+	VulkanApplication app;
 
 	try
 	{

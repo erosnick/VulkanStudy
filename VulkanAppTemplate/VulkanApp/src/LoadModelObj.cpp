@@ -9,31 +9,32 @@
 
 #include "labutils/error.hpp"
 #include "SimpleModel.h"
+
 namespace lut = labutils;
 
-SimpleModel load_simple_wavefront_obj( char const* aPath )
+SimpleModel loadSimpleWavefrontObj(char const* aPath)
 {
-	assert( aPath );
-	
+	assert(aPath);
+
 	// Ask rapidobj to load the requested file
-	auto result = rapidobj::ParseFile( aPath );
-	if( result.error )
-		throw lut::Error( "Unable to load OBJ file '%s': %s", aPath, result.error.code.message().c_str() );
+	auto result = rapidobj::ParseFile(aPath);
+	if (result.error)
+		throw lut::Error("Unable to load OBJ file '%s': %s", aPath, result.error.code.message().c_str());
 
 	// OBJ files can define faces that are not triangles. However, Vulkan will
 	// only render triangles (or lines and points), so we must triangulate any
 	// faces that are not already triangles. Fortunately, rapidobj can do this
 	// for us.
-	rapidobj::Triangulate( result );
+	rapidobj::Triangulate(result);
 
 	// Find the path to the OBJ file
 	char const* pathBeg = aPath;
-	char const* pathEnd = std::strrchr( pathBeg, '/' );
-	
+	char const* pathEnd = std::strrchr(pathBeg, '/');
+
 	std::string const prefix = pathEnd
-		? std::string( pathBeg, pathEnd+1 )
+		? std::string(pathBeg, pathEnd + 1)
 		: ""
-	;
+		;
 
 	// Convert the OBJ data into a SimpleModel structure.
 	// First, extract material data.
@@ -41,17 +42,20 @@ SimpleModel load_simple_wavefront_obj( char const* aPath )
 
 	ret.modelSourcePath = aPath;
 
-	for( auto const& mat : result.materials )
+	for (auto const& mat : result.materials)
 	{
 		SimpleMaterialInfo mi;
 
-		mi.materialName  = mat.name;
-		mi.diffuseColor  = glm::vec3( mat.diffuse[0], mat.diffuse[1], mat.diffuse[2] );
+		mi.materialName = mat.name;
+		mi.diffuseColor = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
 
-		if( !mat.diffuse_texname.empty() )
-			mi.diffuseTexturePath  = prefix + mat.diffuse_texname;
+		if (!mat.diffuse_texname.empty())
+			mi.diffuseTexturePath = prefix + mat.diffuse_texname;
 
-		ret.materials.emplace_back( std::move(mi) );
+		if (!mat.alpha_texname.empty())
+			mi.alphaTexturePath = prefix + mat.alpha_texname;
+
+		ret.materials.emplace_back(std::move(mi));
 	}
 
 	// Next, extract the actual mesh data. There are some complications:
@@ -68,22 +72,22 @@ SimpleModel load_simple_wavefront_obj( char const* aPath )
 	// Unfortunately, RapidOBJ exposes a per-face material index.
 
 	std::unordered_set<std::size_t> activeMaterials;
-	for( auto const& shape : result.shapes )
+	for (auto const& shape : result.shapes)
 	{
 		auto const& shapeName = shape.name;
 
 		// Scan shape for materials
 		activeMaterials.clear();
 
-		for( std::size_t i = 0; i < shape.mesh.indices.size(); ++i )
+		for (std::size_t i = 0; i < shape.mesh.indices.size(); ++i)
 		{
-			auto const faceId = i/3; // Always triangles; see Triangulate() above
+			auto const faceId = i / 3; // Always triangles; see Triangulate() above
 
-			assert( faceId < shape.mesh.material_ids.size() );
+			assert(faceId < shape.mesh.material_ids.size());
 			auto const matId = shape.mesh.material_ids[faceId];
 
-			assert( matId < int(ret.materials.size()) );
-			activeMaterials.emplace( matId );
+			assert(matId < int(ret.materials.size()));
+			activeMaterials.emplace(matId);
 		}
 
 		// Process vertices for active material
@@ -93,64 +97,66 @@ SimpleModel load_simple_wavefront_obj( char const* aPath )
 		// Note: we still keep different "shapes" separate. For static meshes,
 		// one could merge all vertices with the same material for a bit more
 		// efficient rendering.
-		for( auto const matId : activeMaterials )
+		for (auto const matId : activeMaterials)
 		{
 			auto* opos = &ret.dataTextured.positions;
 			auto* otex = &ret.dataTextured.texcoords;
 
 			bool const textured = !ret.materials[matId].diffuseTexturePath.empty();
-			if( !textured )
+			bool const alphaTextured = !ret.materials[matId].alphaTexturePath.empty();
+			if (!textured)
 			{
 				opos = &ret.dataUntextured.positions;
 				otex = nullptr;
 			}
-			
+
 			// Keep track of mesh names; this can be useful for debugging.
 			std::string meshName;
-			if( 1 == activeMaterials.size() )
+			if (1 == activeMaterials.size())
 				meshName = shapeName;
 			else
 				meshName = shapeName + "::" + ret.materials[matId].materialName;
 
 			// Extract this material's vertices.
 			auto const firstVertex = opos->size();
-			assert( !textured || firstVertex == otex->size() );
-			
-			for( std::size_t i = 0; i < shape.mesh.indices.size(); ++i )
+			assert(!textured || firstVertex == otex->size());
+
+			for (std::size_t i = 0; i < shape.mesh.indices.size(); ++i)
 			{
-				auto const faceId = i/3; // Always triangles; see Triangulate() above
+				auto const faceId = i / 3; // Always triangles; see Triangulate() above
 				auto const faceMat = std::size_t(shape.mesh.material_ids[faceId]);
 
-				if( faceMat != matId )
+				if (faceMat != matId)
 					continue;
 
 				auto const& idx = shape.mesh.indices[i];
 
-				opos->emplace_back( glm::vec3{
-					result.attributes.positions[idx.position_index*3+0],
-					result.attributes.positions[idx.position_index*3+1],
-					result.attributes.positions[idx.position_index*3+2]
-				} );
+				opos->emplace_back(glm::vec3{
+					result.attributes.positions[idx.position_index * 3 + 0],
+					result.attributes.positions[idx.position_index * 3 + 1],
+					result.attributes.positions[idx.position_index * 3 + 2]
+					});
 
-				if( textured )
+				if (textured)
 				{
-					otex->emplace_back( glm::vec2{
-						result.attributes.texcoords[idx.texcoord_index*2+0],
-						result.attributes.texcoords[idx.texcoord_index*2+1]
-					} );
+					otex->emplace_back(glm::vec2{
+						result.attributes.texcoords[idx.texcoord_index * 2 + 0],
+						result.attributes.texcoords[idx.texcoord_index * 2 + 1]
+						});
 				}
 			}
 
 			auto const vertexCount = opos->size() - firstVertex;
-			assert( !textured || vertexCount == otex->size() - firstVertex );
+			assert(!textured || vertexCount == otex->size() - firstVertex);
 
-			ret.meshes.emplace_back( SimpleMeshInfo{
+			ret.meshes.emplace_back(SimpleMeshInfo{
 				std::move(meshName),
 				matId,
 				textured,
+				alphaTextured,
 				firstVertex,
 				vertexCount
-			} );
+				});
 		}
 	}
 

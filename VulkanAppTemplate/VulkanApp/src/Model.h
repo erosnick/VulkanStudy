@@ -6,8 +6,29 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <memory>
 
 #include "glm.h"
+
+struct Material
+{
+	bool hasTexture() { return !diffuseTexturePath.empty(); }
+	bool hasAlphaTexture() { return !alphaTexturePath.empty(); }
+
+	glm::vec3 Kd;
+	glm::vec3 Ka;
+	glm::vec3 Ks;
+	glm::vec3 Ke;
+	float shininess;
+	float reflectionFactor;
+	float refractionFactor;
+	// relative index of refraction(n1/n2)
+	float ior;
+	float eta;
+	bool hasNormalMap = false;
+	std::string diffuseTexturePath;
+	std::string alphaTexturePath;
+};
 
 struct Vertex
 {
@@ -103,10 +124,19 @@ struct Mesh
 	const std::vector<Vertex>& getVertices() const { return vertices; }
 	const std::vector<uint32_t>& getIndices() const { return indices; }
 
+	const std::shared_ptr<Material>& getMaterial() const { return material; }
+
+	void setMaterial(const std::shared_ptr<Material>& newMaterial)
+	{
+		material = newMaterial;
+	}
+
 	void computeNormals();
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
+
+	std::shared_ptr<Material> material;
 };
 
 class Model
@@ -116,7 +146,7 @@ public:
 
 	void draw() const;
 
-	Mesh mesh;
+	std::vector<Mesh> meshes;
 
 	glm::vec3 position{ 0.0f };
 	glm::vec3 scale{ 1.0f };

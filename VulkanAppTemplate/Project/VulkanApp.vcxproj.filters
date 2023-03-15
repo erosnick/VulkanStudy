@@ -12,7 +12,7 @@
     <ClInclude Include="..\VulkanApp\src\Camera.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="..\VulkanApp\src\HelloTriangleAppliaction.h">
+    <ClInclude Include="..\VulkanApp\src\VulkanApplication.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="..\VulkanApp\src\LoadModelObj.h">
@@ -35,7 +35,7 @@
     <ClCompile Include="..\ThirdParty\volk\src\volk.c">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="..\VulkanApp\src\HelloTriangleAppliaction.cpp">
+    <ClCompile Include="..\VulkanApp\src\VulkanApplication.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\ImGui\ImGuiBuild.cpp">
