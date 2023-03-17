@@ -12,9 +12,6 @@
     <ClInclude Include="..\VulkanApp\src\Camera.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="..\VulkanApp\src\VulkanApplication.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
     <ClInclude Include="..\VulkanApp\src\LoadModelObj.h">
       <Filter>Headers</Filter>
     </ClInclude>
@@ -22,6 +19,9 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="..\VulkanApp\src\SimpleModel.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\VulkanApplication.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="..\VulkanApp\src\glm.h">
@@ -35,9 +35,6 @@
     <ClCompile Include="..\ThirdParty\volk\src\volk.c">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="..\VulkanApp\src\VulkanApplication.cpp">
-      <Filter>Sources</Filter>
-    </ClCompile>
     <ClCompile Include="..\VulkanApp\src\ImGui\ImGuiBuild.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
@@ -45,6 +42,9 @@
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\Model.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\VulkanApplication.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\labutils\allocator.cpp">

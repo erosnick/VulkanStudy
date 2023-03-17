@@ -25,6 +25,26 @@ workspace "VulkanApp"
         targetdir ("bin/%{cfg.buildcfg}_%{cfg.platform}/")      --指定输出目录
         objdir  ("obj/%{cfg.buildcfg}_%{cfg.platform}/")        --指定中间目录
 
+-- GLSLC helpers
+dofile( "Utils/glslc.lua" )
+
+project "Shaders"
+	local shaders = { 
+		"Assets/Shaders/*.vert",
+		"Assets/Shaders/*.frag",
+		"Assets/Shaders/*.comp",
+		"Assets/Shaders/*.geom",
+		"Assets/Shaders/*.tesc",
+		"Assets/Shaders/*.tese"
+	}
+
+	kind "Utility"
+	location "Assets/Shaders"
+
+	files( shaders )
+
+	handle_glsl_files( "-O", "Assets/Shaders", {} )
+
 --project: 对应VS中的项目
 project "VulkanApp"
     kind "ConsoleApp"                       --项目类型，控制台程序

@@ -68,28 +68,28 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>..\bin\Debug_Win32\</OutDir>
-    <IntDir>..\obj\Debug_Win32\</IntDir>
+    <IntDir>..\obj\Debug_Win32\Win32\Debug\VulkanApp\</IntDir>
     <TargetName>VulkanApp</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>..\bin\Debug_x64\</OutDir>
-    <IntDir>..\obj\Debug_x64\</IntDir>
+    <IntDir>..\obj\Debug_x64\x64\Debug\VulkanApp\</IntDir>
     <TargetName>VulkanApp</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>..\bin\Release_Win32\</OutDir>
-    <IntDir>..\obj\Release_Win32\</IntDir>
+    <IntDir>..\obj\Release_Win32\Win32\Release\VulkanApp\</IntDir>
     <TargetName>VulkanApp</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>..\bin\Release_x64\</OutDir>
-    <IntDir>..\obj\Release_x64\</IntDir>
+    <IntDir>..\obj\Release_x64\x64\Release\VulkanApp\</IntDir>
     <TargetName>VulkanApp</TargetName>
     <TargetExt>.exe</TargetExt>
   </PropertyGroup>
@@ -187,19 +187,19 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\VulkanApp\src\Camera.h" />
-    <ClInclude Include="..\VulkanApp\src\VulkanApplication.h" />
     <ClInclude Include="..\VulkanApp\src\LoadModelObj.h" />
     <ClInclude Include="..\VulkanApp\src\Model.h" />
     <ClInclude Include="..\VulkanApp\src\SimpleModel.h" />
+    <ClInclude Include="..\VulkanApp\src\VulkanApplication.h" />
     <ClInclude Include="..\VulkanApp\src\glm.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\ThirdParty\VulkanMemoryAllocator\src\vk_mem_alloc.cpp" />
     <ClCompile Include="..\ThirdParty\volk\src\volk.c" />
-    <ClCompile Include="..\VulkanApp\src\VulkanApplication.cpp" />
     <ClCompile Include="..\VulkanApp\src\ImGui\ImGuiBuild.cpp" />
     <ClCompile Include="..\VulkanApp\src\LoadModelObj.cpp" />
     <ClCompile Include="..\VulkanApp\src\Model.cpp" />
+    <ClCompile Include="..\VulkanApp\src\VulkanApplication.cpp" />
     <ClCompile Include="..\VulkanApp\src\labutils\allocator.cpp" />
     <ClCompile Include="..\VulkanApp\src\labutils\context_helpers.cpp" />
     <ClCompile Include="..\VulkanApp\src\labutils\error.cpp" />
