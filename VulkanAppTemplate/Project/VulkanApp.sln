@@ -8,6 +8,9 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Shaders", "..\Assets\Shaders\Shaders.vcxproj", "{EFAC8DF2-5B8C-0C8E-64A4-9764D00273EF}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VulkanApp", "VulkanApp.vcxproj", "{77264388-E390-F7FE-2CCF-A8A49878D553}"
+	ProjectSection(ProjectDependencies) = postProject
+		{EFAC8DF2-5B8C-0C8E-64A4-9764D00273EF} = {EFAC8DF2-5B8C-0C8E-64A4-9764D00273EF}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

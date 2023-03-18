@@ -72,6 +72,8 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 	// Unfortunately, RapidOBJ exposes a per-face material index.
 
 	std::unordered_set<std::size_t> activeMaterials;
+	std::unordered_map<Vertex, uint32_t> globalUniqueVertices;
+
 	for (auto const& shape : result.shapes)
 	{
 		auto const& shapeName = shape.name;
@@ -101,12 +103,14 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 		{
 			auto* opos = &ret.dataTextured.positions;
 			auto* otex = &ret.dataTextured.texcoords;
+			auto* onormals = &ret.dataTextured.normals;
 
 			bool const textured = !ret.materials[matId].diffuseTexturePath.empty();
 			bool const alphaTextured = !ret.materials[matId].alphaTexturePath.empty();
 			if (!textured)
 			{
 				opos = &ret.dataUntextured.positions;
+				onormals = &ret.dataUntextured.normals;
 				otex = nullptr;
 			}
 
@@ -119,7 +123,12 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 
 			// Extract this material's vertices.
 			auto const firstVertex = opos->size();
+			size_t firstIndex = ret.indices.size();
 			assert(!textured || firstVertex == otex->size());
+
+			std::vector<Vertex> vertices;
+			std::vector<uint32_t> indices;
+			std::unordered_map<Vertex, uint32_t> uniqueVertices;
 
 			for (std::size_t i = 0; i < shape.mesh.indices.size(); ++i)
 			{
@@ -131,32 +140,70 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 
 				auto const& idx = shape.mesh.indices[i];
 
-				opos->emplace_back(glm::vec3{
-					result.attributes.positions[idx.position_index * 3 + 0],
-					result.attributes.positions[idx.position_index * 3 + 1],
-					result.attributes.positions[idx.position_index * 3 + 2]
-					});
+				Vertex vertex;
+
+				auto x = result.attributes.positions[idx.position_index * 3 + 0];
+				auto y = result.attributes.positions[idx.position_index * 3 + 1];
+				auto z = result.attributes.positions[idx.position_index * 3 + 2];
+
+				opos->emplace_back(glm::vec3{ x, y, z });
+
+				vertex.position = { x, y, z };
+
+				auto nx = result.attributes.normals[idx.normal_index * 3 + 0];
+				auto ny = result.attributes.normals[idx.normal_index * 3 + 1];
+				auto nz = result.attributes.normals[idx.normal_index * 3 + 2];
+
+				onormals->emplace_back(glm::vec3{ nx, ny, nz });
+
+				vertex.normal = { nx, ny, nz };
 
 				if (textured)
 				{
-					otex->emplace_back(glm::vec2{
-						result.attributes.texcoords[idx.texcoord_index * 2 + 0],
-						result.attributes.texcoords[idx.texcoord_index * 2 + 1]
-						});
+					auto tx = result.attributes.texcoords[idx.texcoord_index * 2 + 0];
+					auto ty = result.attributes.texcoords[idx.texcoord_index * 2 + 1];
+
+					otex->emplace_back(glm::vec2{ tx, ty });
+
+					vertex.texcoord = { tx, ty };
 				}
+
+				if (uniqueVertices.count(vertex) == 0)
+				{
+					uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+					vertices.emplace_back(vertex);
+				}
+
+				if (globalUniqueVertices.count(vertex) == 0)
+				{
+					globalUniqueVertices[vertex] = static_cast<uint32_t>(ret.vertices.size());
+					ret.vertices.emplace_back(vertex);
+				}
+
+				ret.indices.emplace_back(globalUniqueVertices[vertex]);
+				indices.emplace_back(globalUniqueVertices[vertex]);
 			}
+
+			SimpleMeshInfo meshInfo;
+
+			meshInfo.meshName = std::move(meshName);
+			meshInfo.materialIndex = matId;
+			meshInfo.textured = textured;
+			meshInfo.alphaTextured = alphaTextured;
+			meshInfo.vertexStartIndex = firstVertex;
 
 			auto const vertexCount = opos->size() - firstVertex;
 			assert(!textured || vertexCount == otex->size() - firstVertex);
 
-			ret.meshes.emplace_back(SimpleMeshInfo{
-				std::move(meshName),
-				matId,
-				textured,
-				alphaTextured,
-				firstVertex,
-				vertexCount
-				});
+			auto const indexCount = ret.indices.size() - firstIndex;
+
+			meshInfo.vertexCount = vertexCount;
+			meshInfo.indexStartIndex = firstIndex;
+			meshInfo.indexCount = indexCount;
+			meshInfo.vertices = vertices;
+			meshInfo.indices = indices;
+
+			ret.meshes.emplace_back(meshInfo);
 		}
 	}
 

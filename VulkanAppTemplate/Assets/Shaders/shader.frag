@@ -4,13 +4,14 @@ layout (location = 0) in vec3 normal;
 layout (location = 1) in vec2 texcoord;
 layout (location = 2) in vec3 fragColor;
 
-layout (binding = 1) uniform MaterialUniformBufferObject
+layout (binding = 2) uniform MaterialUniformBufferObject
 {
     vec4 diffuseColor;
     vec4 padding;
 } materialUniformBufferObject;
 
-layout (binding = 2) uniform sampler2D textureSampler;
+layout (binding = 3) uniform sampler2D textureSampler;
+layout (binding = 4) uniform sampler2D alphaTextureSampler;
 
 layout (location = 0) out vec4 outColor;
 
@@ -31,6 +32,16 @@ void main()
     else
     {
         albedo = materialUniformBufferObject.diffuseColor.rgb;
+    }
+
+    if (materialUniformBufferObject.diffuseColor.a > 1.0)
+    {
+        float alpha = texture(alphaTextureSampler, texcoord).r;
+
+        if (alpha < 0.1)
+        {
+            discard;
+        }
     }
 
     vec3 ambient = vec3(0.3) * albedo;

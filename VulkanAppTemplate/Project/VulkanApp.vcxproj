@@ -190,6 +190,7 @@
     <ClInclude Include="..\VulkanApp\src\LoadModelObj.h" />
     <ClInclude Include="..\VulkanApp\src\Model.h" />
     <ClInclude Include="..\VulkanApp\src\SimpleModel.h" />
+    <ClInclude Include="..\VulkanApp\src\Vertex.h" />
     <ClInclude Include="..\VulkanApp\src\VulkanApplication.h" />
     <ClInclude Include="..\VulkanApp\src\glm.h" />
   </ItemGroup>

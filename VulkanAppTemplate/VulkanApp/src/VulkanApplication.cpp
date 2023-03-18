@@ -14,6 +14,9 @@
 #include <stb_image.h>
 
 #include "LoadModelObj.h"
+#include "GeometryGenerator.h"
+
+GeometryGenerator geometryGenerator;
 
 VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) 
 {
@@ -618,35 +621,35 @@ void VulkanApplication::createRenderPass()
 
 void VulkanApplication::createDescriptorSetLayout()
 {
-	VkDescriptorSetLayoutBinding objectUniformBufferLayoutBinding{};
-	objectUniformBufferLayoutBinding.binding = 0;
-	objectUniformBufferLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	objectUniformBufferLayoutBinding.descriptorCount = 1;
-	objectUniformBufferLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	objectUniformBufferLayoutBinding.pImmutableSamplers = nullptr;
+	VkDescriptorSetLayoutBinding globalUniformBufferLayoutBinding{};
+	globalUniformBufferLayoutBinding.binding = 0;
+	globalUniformBufferLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	globalUniformBufferLayoutBinding.descriptorCount = 1;
+	globalUniformBufferLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	globalUniformBufferLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding materialUniformBufferLayoutBinding{};
-	materialUniformBufferLayoutBinding.binding = 1;
+	materialUniformBufferLayoutBinding.binding = 2;
 	materialUniformBufferLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	materialUniformBufferLayoutBinding.descriptorCount = 1;
 	materialUniformBufferLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	materialUniformBufferLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding samplerLayoutBingding{};
-	samplerLayoutBingding.binding = 2;
+	samplerLayoutBingding.binding = 3;
 	samplerLayoutBingding.descriptorCount = 1;
 	samplerLayoutBingding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	samplerLayoutBingding.pImmutableSamplers = nullptr;
 	samplerLayoutBingding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutBinding alphaSamplerLayoutBingding{};
-	alphaSamplerLayoutBingding.binding = 3;
+	alphaSamplerLayoutBingding.binding = 4;
 	alphaSamplerLayoutBingding.descriptorCount = 1;
 	alphaSamplerLayoutBingding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	alphaSamplerLayoutBingding.pImmutableSamplers = nullptr;
 	alphaSamplerLayoutBingding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 4> descriptorSetLayoutBindings{ objectUniformBufferLayoutBinding, materialUniformBufferLayoutBinding, samplerLayoutBingding, alphaSamplerLayoutBingding };
+	std::array<VkDescriptorSetLayoutBinding, 4> descriptorSetLayoutBindings{ globalUniformBufferLayoutBinding, materialUniformBufferLayoutBinding, samplerLayoutBingding, alphaSamplerLayoutBingding };
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetlayoutCreateInfo{};
 	descriptorSetlayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1113,37 +1116,18 @@ std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const Mesh& 
 
 std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const SimpleMeshInfo& mesh)
 {
-	const auto& dataTextured = objModel.dataTextured;
-	const auto& dataUntextured = objModel.dataUntextured;
-	const auto& materials = objModel.materials;
-
-	const auto& material = materials[mesh.materialIndex];
+	const auto& material = objModel.materials[mesh.materialIndex];
 
 	auto meshGeometry = std::make_unique<MeshGeometry>();
 	meshGeometry->material = std::make_shared<Material>();
 
 	auto textured = mesh.textured;
 
-	std::vector<Vertex> vertices;
-
-	for (auto vertexIndex = mesh.vertexStartIndex; vertexIndex < mesh.vertexStartIndex + mesh.vertexCount; vertexIndex++)
-	{
-		Vertex vertex;
-		if (textured)
-		{
-			vertex.position = dataTextured.positions[vertexIndex];
-			vertex.texcoord = dataTextured.texcoords[vertexIndex];
-		}
-		else
-		{
-			vertex.position = dataUntextured.positions[vertexIndex];
-		}
-
-		vertices.emplace_back(vertex);
-	}
-
-	meshGeometry->vertexBuffer = createVertexBuffer(vertices, meshGeometry->vertexBufferMemory);
-	meshGeometry->vertexCount = static_cast<uint32_t>(vertices.size());
+	meshGeometry->vertexBuffer = createVertexBuffer(mesh.vertices, meshGeometry->vertexBufferMemory);
+	meshGeometry->indexBuffer = createIndexBuffer(mesh.indices, meshGeometry->indexBufferMemory);
+	meshGeometry->vertexCount = static_cast<uint32_t>(mesh.vertices.size());
+	meshGeometry->indexStartIndex = static_cast<uint32_t>(mesh.indexStartIndex);
+	meshGeometry->indexCount = static_cast<uint32_t>(mesh.indices.size());
 	meshGeometry->material->diffuseTexturePath = material.diffuseTexturePath;
 	meshGeometry->material->alphaTexturePath = material.alphaTexturePath;
 	meshGeometry->material->Kd = material.diffuseColor;
@@ -1185,9 +1169,27 @@ void VulkanApplication::createMeshGeometries(const SimpleModel& model)
 	}
 }
 
-void VulkanApplication::createUniformBuffers()
+void VulkanApplication::createGlobalUniformBuffers()
 {
-	VkDeviceSize bufferSize = sizeof (UniformBufferObject);
+	VkDeviceSize bufferSize = sizeof (GlobalUniformBufferObject);
+
+	globalUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+	globalUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+	globalUniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+					 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			globalUniformBuffers[i], globalUniformBuffersMemory[i]);
+
+		vkMapMemory(device, globalUniformBuffersMemory[i], 0, bufferSize, 0, &globalUniformBuffersMapped[i]);
+	}
+}
+
+void VulkanApplication::createObjectUniformBuffers()
+{
+	VkDeviceSize bufferSize = sizeof(ObjectUniformBufferObject);
 
 	objectUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 	objectUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
@@ -1195,8 +1197,8 @@ void VulkanApplication::createUniformBuffers()
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
-					 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			objectUniformBuffers[i], objectUniformBuffersMemory[i]);
 
 		vkMapMemory(device, objectUniformBuffersMemory[i], 0, bufferSize, 0, &objectUniformBuffersMapped[i]);
@@ -1282,10 +1284,15 @@ void VulkanApplication::createDescriptorSets()
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		VkDescriptorBufferInfo objectBufferInfo{};
-		objectBufferInfo.buffer = objectUniformBuffers[i];
-		objectBufferInfo.offset = 0;
-		objectBufferInfo.range = sizeof(UniformBufferObject);
+		VkDescriptorBufferInfo globalBufferBufferInfo{};
+		globalBufferBufferInfo.buffer = globalUniformBuffers[i];
+		globalBufferBufferInfo.offset = 0;
+		globalBufferBufferInfo.range = sizeof(GlobalUniformBufferObject);
+
+		VkDescriptorBufferInfo objectBufferBufferInfo{};
+		objectBufferBufferInfo.buffer = objectUniformBuffers[i];
+		objectBufferBufferInfo.offset = 0;
+		objectBufferBufferInfo.range = sizeof(ObjectUniformBufferObject);
 
 		VkDescriptorBufferInfo materialBufferInfo{};
 		materialBufferInfo.buffer = materialUniformBuffers[i];
@@ -1298,7 +1305,7 @@ void VulkanApplication::createDescriptorSets()
 		imageInfo.imageView = textureImageView;
 		imageInfo.sampler = textureSampler;
 
-		std::array<VkWriteDescriptorSet, 4> writeDescriptorSets{};
+		std::array<VkWriteDescriptorSet, 5> writeDescriptorSets{};
 
 		writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		writeDescriptorSets[0].dstSet = descriptorSets[i];
@@ -1306,7 +1313,7 @@ void VulkanApplication::createDescriptorSets()
 		writeDescriptorSets[0].dstArrayElement = 0;
 		writeDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		writeDescriptorSets[0].descriptorCount = 1;
-		writeDescriptorSets[0].pBufferInfo = &objectBufferInfo;
+		writeDescriptorSets[0].pBufferInfo = &globalBufferBufferInfo;
 		writeDescriptorSets[0].pImageInfo = nullptr;
 		writeDescriptorSets[0].pTexelBufferView = nullptr;
 
@@ -1316,7 +1323,7 @@ void VulkanApplication::createDescriptorSets()
 		writeDescriptorSets[1].dstArrayElement = 0;
 		writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 		writeDescriptorSets[1].descriptorCount = 1;
-		writeDescriptorSets[1].pBufferInfo = &materialBufferInfo;
+		writeDescriptorSets[1].pBufferInfo = &objectBufferBufferInfo;
 		writeDescriptorSets[1].pImageInfo = nullptr;
 		writeDescriptorSets[1].pTexelBufferView = nullptr;
 
@@ -1324,10 +1331,10 @@ void VulkanApplication::createDescriptorSets()
 		writeDescriptorSets[2].dstSet = descriptorSets[i];
 		writeDescriptorSets[2].dstBinding = 2;
 		writeDescriptorSets[2].dstArrayElement = 0;
-		writeDescriptorSets[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writeDescriptorSets[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 		writeDescriptorSets[2].descriptorCount = 1;
-		writeDescriptorSets[2].pBufferInfo = nullptr;
-		writeDescriptorSets[2].pImageInfo = &imageInfo;
+		writeDescriptorSets[2].pBufferInfo = &materialBufferInfo;
+		writeDescriptorSets[2].pImageInfo = nullptr;
 		writeDescriptorSets[2].pTexelBufferView = nullptr;
 
 		writeDescriptorSets[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1339,6 +1346,16 @@ void VulkanApplication::createDescriptorSets()
 		writeDescriptorSets[3].pBufferInfo = nullptr;
 		writeDescriptorSets[3].pImageInfo = &imageInfo;
 		writeDescriptorSets[3].pTexelBufferView = nullptr;
+
+		writeDescriptorSets[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSets[4].dstSet = descriptorSets[i];
+		writeDescriptorSets[4].dstBinding = 4;
+		writeDescriptorSets[4].dstArrayElement = 0;
+		writeDescriptorSets[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writeDescriptorSets[4].descriptorCount = 1;
+		writeDescriptorSets[4].pBufferInfo = nullptr;
+		writeDescriptorSets[4].pImageInfo = &imageInfo;
+		writeDescriptorSets[4].pTexelBufferView = nullptr;
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
@@ -1421,18 +1438,24 @@ void VulkanApplication::recordCommandBuffer(VkCommandBuffer inCommandBuffer, uin
 	
 	vkCmdSetScissor(inCommandBuffer, 0, 1, &scissor);
 
+	// 这里vertexBUffer是全局的顶点缓冲(整个.obj模型的所有submesh数据都存在它里面)
+	VkBuffer vertexBuffers[]{ vertexBuffer };
+	VkDeviceSize offsets[]{ 0 };
+	vkCmdBindVertexBuffers(inCommandBuffer, 0, 1, vertexBuffers, offsets);
+
+	// 这里的indexBUffer同样是全局的索引缓冲
+	// 绘制时通过vkCmdDrawIndexd第三个参数indexCount配合第四个参数firstIndex来进行索引
+	vkCmdBindIndexBuffer(inCommandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
 	for (auto i = 0; i < meshGeometries.size(); i++)
 	{
 		const auto& meshGeometry = meshGeometries[i];
 
-		VkBuffer vertexBuffers[]{ meshGeometry->vertexBuffer };
-		VkDeviceSize offsets[]{ 0 };
-
-		vkCmdBindVertexBuffers(inCommandBuffer, 0, 1, vertexBuffers, offsets);
+		//VkBuffer vertexBuffers[]{ meshGeometry->vertexBuffer };
 
 		if (meshGeometry->indexBuffer != nullptr)
 		{
-			vkCmdBindIndexBuffer(inCommandBuffer, meshGeometry->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			//vkCmdBindIndexBuffer(inCommandBuffer, meshGeometry->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 		}
 
 		MaterialUniformBufferObject materialUniformBufferObject;
@@ -1464,14 +1487,9 @@ void VulkanApplication::recordCommandBuffer(VkCommandBuffer inCommandBuffer, uin
 		// instanceCount : Used for instanced rendering, use 1 if you're not doing that.
 		// firstVertex : Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
 		// firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		if (meshGeometry->indexBuffer != nullptr)
-		{
-			vkCmdDrawIndexed(inCommandBuffer, meshGeometry->indexCount, 1, 0, 0, 0);
-		}
-		else
-		{
-			vkCmdDraw(inCommandBuffer, meshGeometry->vertexCount, 1, 0, 0);
-		}
+
+		// 第四个参数代表当前submesh的索引在全局索引缓冲中的起始位置
+		vkCmdDrawIndexed(inCommandBuffer, meshGeometry->indexCount, 1, meshGeometry->indexStartIndex, 0, 0);
 	}
 
 	renderImGui();
@@ -1845,9 +1863,12 @@ void VulkanApplication::loadResources()
 	//model.load(ResourceBase + "models/texture_bunny.obj");
 	//model.load(ResourceBase + "sponza_with_ship.obj");
 
-	//objModel = load_simple_wavefront_obj((ResourceBase + "models/cube.obj").c_str());
-	//objModel = load_simple_wavefront_obj((ResourceBase + "models/plane.obj").c_str());
+	//objModel = loadSimpleWavefrontObj((ResourceBase + "models/cube.obj").c_str());
+	//objModel = loadSimpleWavefrontObj((ResourceBase + "models/plane.obj").c_str());
 	objModel = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
+
+	vertexBuffer = createVertexBuffer(objModel.vertices, vertexBufferMemory);
+	indexBuffer = createIndexBuffer(objModel.indices, indexBufferMemory);
 
 	//model.mesh.vertices = quadVertices;
 	//model.mesh.indices = quadIndices;
@@ -1871,6 +1892,24 @@ void VulkanApplication::updateFPSCounter()
 	frameCount++;
 }
 
+void VulkanApplication::updateGlobaltUniformBuffer(uint32_t frameIndex)
+{
+	static auto startTime = std::chrono::high_resolution_clock::now();
+
+	auto currentTime = std::chrono::high_resolution_clock::now();
+
+	auto time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+	GlobalUniformBufferObject ubo{};
+	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.model = glm::mat4(1.0f);
+	ubo.view = camera.GetViewMatrix();
+	ubo.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / static_cast<float>(swapChainExtent.height), 0.1f, 100.0f);
+	ubo.projection[1][1] *= -1.0f;
+
+	memcpy_s(globalUniformBuffersMapped[frameIndex], sizeof(ubo), &ubo, sizeof(ubo));
+}
+
 void VulkanApplication::updateObjectUniformBuffer(uint32_t frameIndex)
 {
 	static auto startTime = std::chrono::high_resolution_clock::now();
@@ -1879,7 +1918,7 @@ void VulkanApplication::updateObjectUniformBuffer(uint32_t frameIndex)
 
 	auto time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-	UniformBufferObject ubo{};
+	ObjectUniformBufferObject ubo{};
 	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	ubo.model = glm::mat4(1.0f);
 	ubo.view = camera.GetViewMatrix();
@@ -1899,10 +1938,15 @@ void VulkanApplication::updateMaterialUniformBuffer(uint32_t frameIndex, uint32_
 
 void VulkanApplication::updateImageView(VkImageView imageView, VkImageView alphaImageView, uint32_t frameIndex)
 {
-	VkDescriptorBufferInfo objectBufferInfo{};
-	objectBufferInfo.buffer = objectUniformBuffers[frameIndex];
-	objectBufferInfo.offset = 0;
-	objectBufferInfo.range = sizeof(UniformBufferObject);
+	VkDescriptorBufferInfo globalBufferBufferInfo{};
+	globalBufferBufferInfo.buffer = globalUniformBuffers[frameIndex];
+	globalBufferBufferInfo.offset = 0;
+	globalBufferBufferInfo.range = sizeof(GlobalUniformBufferObject);
+
+	VkDescriptorBufferInfo objectBufferBufferInfo{};
+	objectBufferBufferInfo.buffer = objectUniformBuffers[frameIndex];
+	objectBufferBufferInfo.offset = 0;
+	objectBufferBufferInfo.range = sizeof(ObjectUniformBufferObject);
 
 	VkDescriptorBufferInfo materialBufferInfo{};
 	materialBufferInfo.buffer = materialUniformBuffers[frameIndex];
@@ -1915,7 +1959,7 @@ void VulkanApplication::updateImageView(VkImageView imageView, VkImageView alpha
 	imageInfo.imageView = imageView;
 	imageInfo.sampler = textureSampler;
 
-	std::array<VkWriteDescriptorSet, 4> writeDescriptorSets{};
+	std::array<VkWriteDescriptorSet, 5> writeDescriptorSets{};
 
 	writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeDescriptorSets[0].dstSet = descriptorSets[frameIndex];
@@ -1923,7 +1967,7 @@ void VulkanApplication::updateImageView(VkImageView imageView, VkImageView alpha
 	writeDescriptorSets[0].dstArrayElement = 0;
 	writeDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	writeDescriptorSets[0].descriptorCount = 1;
-	writeDescriptorSets[0].pBufferInfo = &objectBufferInfo;
+	writeDescriptorSets[0].pBufferInfo = &globalBufferBufferInfo;
 	writeDescriptorSets[0].pImageInfo = nullptr;
 	writeDescriptorSets[0].pTexelBufferView = nullptr;
 
@@ -1933,7 +1977,7 @@ void VulkanApplication::updateImageView(VkImageView imageView, VkImageView alpha
 	writeDescriptorSets[1].dstArrayElement = 0;
 	writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	writeDescriptorSets[1].descriptorCount = 1;
-	writeDescriptorSets[1].pBufferInfo = &materialBufferInfo;
+	writeDescriptorSets[1].pBufferInfo = &objectBufferBufferInfo;
 	writeDescriptorSets[1].pImageInfo = nullptr;
 	writeDescriptorSets[1].pTexelBufferView = nullptr;
 
@@ -1941,11 +1985,21 @@ void VulkanApplication::updateImageView(VkImageView imageView, VkImageView alpha
 	writeDescriptorSets[2].dstSet = descriptorSets[frameIndex];
 	writeDescriptorSets[2].dstBinding = 2;
 	writeDescriptorSets[2].dstArrayElement = 0;
-	writeDescriptorSets[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeDescriptorSets[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	writeDescriptorSets[2].descriptorCount = 1;
-	writeDescriptorSets[2].pBufferInfo = nullptr;
-	writeDescriptorSets[2].pImageInfo = &imageInfo;
+	writeDescriptorSets[2].pBufferInfo = &materialBufferInfo;
+	writeDescriptorSets[2].pImageInfo = nullptr;
 	writeDescriptorSets[2].pTexelBufferView = nullptr;
+
+	writeDescriptorSets[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSets[3].dstSet = descriptorSets[frameIndex];
+	writeDescriptorSets[3].dstBinding = 3;
+	writeDescriptorSets[3].dstArrayElement = 0;
+	writeDescriptorSets[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeDescriptorSets[3].descriptorCount = 1;
+	writeDescriptorSets[3].pBufferInfo = nullptr;
+	writeDescriptorSets[3].pImageInfo = &imageInfo;
+	writeDescriptorSets[3].pTexelBufferView = nullptr;
 
 	VkDescriptorImageInfo alphaImageInfo{};
 	alphaImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1960,15 +2014,15 @@ void VulkanApplication::updateImageView(VkImageView imageView, VkImageView alpha
 		alphaImageInfo.imageView = textureImageView;
 	}
 
-	writeDescriptorSets[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeDescriptorSets[3].dstSet = descriptorSets[frameIndex];
-	writeDescriptorSets[3].dstBinding = 3;
-	writeDescriptorSets[3].dstArrayElement = 0;
-	writeDescriptorSets[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeDescriptorSets[3].descriptorCount = 1;
-	writeDescriptorSets[3].pBufferInfo = nullptr;
-	writeDescriptorSets[3].pImageInfo = &alphaImageInfo;
-	writeDescriptorSets[3].pTexelBufferView = nullptr;
+	writeDescriptorSets[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSets[4].dstSet = descriptorSets[frameIndex];
+	writeDescriptorSets[4].dstBinding = 4;
+	writeDescriptorSets[4].dstArrayElement = 0;
+	writeDescriptorSets[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeDescriptorSets[4].descriptorCount = 1;
+	writeDescriptorSets[4].pBufferInfo = nullptr;
+	writeDescriptorSets[4].pImageInfo = &alphaImageInfo;
+	writeDescriptorSets[4].pTexelBufferView = nullptr;
 
 	vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 }
@@ -2018,7 +2072,8 @@ void VulkanApplication::initVulkan()
 	//createMeshGeometries(model);
 	createMeshGeometries(objModel);
 
-	createUniformBuffers();
+	createGlobalUniformBuffers();
+	createObjectUniformBuffers();
 	createMaterialUniformBuffers();
 	createDescriptorPool();
 	createDescriptorSets();
@@ -2442,6 +2497,7 @@ void VulkanApplication::drawFrame()
 
 	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
 
+	updateGlobaltUniformBuffer(currentFrame);
 	updateObjectUniformBuffer(currentFrame);
 
 	VkSubmitInfo submitInfo{};
@@ -2510,6 +2566,21 @@ void VulkanApplication::cleanup()
 
 	vkDestroyImage(device, textureImage, allocator);
 	vkFreeMemory(device, textureImageMemory, allocator);
+
+	vkDestroyBuffer(device, vertexBuffer, allocator);
+	vkUnmapMemory(device, vertexBufferMemory);
+	vkFreeMemory(device, vertexBufferMemory, allocator);
+
+	vkDestroyBuffer(device, indexBuffer, allocator);
+	vkUnmapMemory(device, indexBufferMemory);
+	vkFreeMemory(device, indexBufferMemory, allocator);
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroyBuffer(device, globalUniformBuffers[i], allocator);
+		vkUnmapMemory(device, globalUniformBuffersMemory[i]);
+		vkFreeMemory(device, globalUniformBuffersMemory[i], allocator);
+	}
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -2777,6 +2848,13 @@ void VulkanApplication::mouseMoveCallback(GLFWwindow* inWindow, double xpos, dou
 		app->camera.ProcessMouseMovement(deltaX, deltaY);
 	}
 
+	if (middleMouseButtonDown)
+	{
+		auto app = reinterpret_cast<VulkanApplication*>(glfwGetWindowUserPointer(inWindow));
+		app->camera.ProcessKeyboard(LEFT, FrameTime * deltaX);
+		app->camera.ProcessKeyboard(DOWN, FrameTime * deltaY);
+	}
+
 	lastMousePosition.x = static_cast<float>(xpos);
 	lastMousePosition.y = static_cast<float>(ypos);
 }
@@ -2798,5 +2876,15 @@ void VulkanApplication::mouseButtonCallback(GLFWwindow* inWindow, int32_t button
 	if (button == GLFW_MOUSE_BUTTON_2 && action == GLFW_RELEASE)
 	{
 		rightMouseButtonDown = false;
+	}
+
+	if (button == GLFW_MOUSE_BUTTON_3 && action == GLFW_PRESS)
+	{
+		middleMouseButtonDown = true;
+	}
+
+	if (button == GLFW_MOUSE_BUTTON_3 && action == GLFW_RELEASE)
+	{
+		middleMouseButtonDown = false;
 	}
 }

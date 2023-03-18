@@ -9,6 +9,8 @@
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 
+#include "Vertex.h"
+
 // A simple material with a diffuse color and an (optional) diffuse texture.
 //
 // If the material does not define a diffuse texture, the `diffuseTexturePath`
@@ -51,6 +53,11 @@ struct SimpleMeshInfo
 
 	std::size_t vertexStartIndex;
 	std::size_t vertexCount;
+	std::size_t indexStartIndex;
+	std::size_t indexCount;
+
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
 };
 
 // Simple model.
@@ -67,13 +74,18 @@ struct SimpleModel
 	struct Data_
 	{
 		std::vector<glm::vec3> positions;
+		std::vector<glm::vec3> normals;
 		std::vector<glm::vec2> texcoords;
 	} dataTextured;
 
 	struct Data2_
 	{
 		std::vector<glm::vec3> positions;
+		std::vector<glm::vec3> normals;
 	} dataUntextured;
+
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
 };
 
 #endif // SIMPLE_MODEL_HPP_CEC8C14F_3678_43C9_8121_BDB60B23D840

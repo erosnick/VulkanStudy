@@ -45,7 +45,14 @@ const std::vector<uint32_t> quadIndices =
 	6, 7, 4
 };
 
-struct UniformBufferObject
+struct GlobalUniformBufferObject
+{
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 projection;
+};
+
+struct ObjectUniformBufferObject
 {
 	glm::mat4 model;
 	glm::mat4 view;
@@ -81,6 +88,7 @@ static ImGui_ImplVulkanH_Window g_MainWindowData;
 const int32_t MAX_FRAMES_IN_FLIGHT = 2;
 
 static bool rightMouseButtonDown = false;
+static bool middleMouseButtonDown = false;
 
 static glm::vec2 lastMousePosition;
 
@@ -147,6 +155,7 @@ struct MeshGeometry
 	VkImageView alphaTextureImageView;
 	uint32_t vertexCount;
 	uint32_t indexCount;
+	uint32_t indexStartIndex;
 	bool hasTexture = false;
 	bool hasAlphaTexture = false;
 	bool dirty = true;
@@ -188,7 +197,8 @@ private:
 	std::unique_ptr<MeshGeometry> createMeshGeometry(const SimpleMeshInfo& mesh);
 	void createMeshGeometries(const Model& model);
 	void createMeshGeometries(const SimpleModel& model);
-	void createUniformBuffers();
+	void createGlobalUniformBuffers();
+	void createObjectUniformBuffers();
 	void createMaterialUniformBuffers();
 	void createCommandBuffers();
 	void createDescriptorPool();
@@ -219,6 +229,7 @@ private:
 	void loadResources();
 
 	void updateFPSCounter();
+	void updateGlobaltUniformBuffer(uint32_t frameIndex);
 	void updateObjectUniformBuffer(uint32_t frameIndex);
 	void updateMaterialUniformBuffer(uint32_t frameIndex, uint32_t index, const MaterialUniformBufferObject& materialUniformBufferObject);
 	void updateImageView(VkImageView imageView, VkImageView alphaImageView, uint32_t frameIndex);
@@ -305,7 +316,14 @@ private:
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
 	std::vector<VkDescriptorSet> descriptorSets;
+	std::vector<VkBuffer> globalUniformBuffers;
+	std::vector<VkDeviceMemory> globalUniformBuffersMemory;
+	std::vector<void*> globalUniformBuffersMapped;
 	std::vector<VkBuffer> objectUniformBuffers;
 	std::vector<VkDeviceMemory> objectUniformBuffersMemory;
 	std::vector<void*> objectUniformBuffersMapped;
