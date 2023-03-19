@@ -143,19 +143,20 @@ struct SwapChainSupportDetails
 
 struct MeshGeometry
 {
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexBufferMemory;
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-	VkImageView textureImageView;
-	VkImage alphaTextureImage;
-	VkDeviceMemory alphaTextureImageMemory;
-	VkImageView alphaTextureImageView;
-	uint32_t vertexCount;
-	uint32_t indexCount;
-	uint32_t indexStartIndex;
+	VkBuffer vertexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
+	VkBuffer indexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
+	VkImage textureImage = VK_NULL_HANDLE;
+	VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
+	VkImageView textureImageView = VK_NULL_HANDLE;
+	VkImage alphaTextureImage = VK_NULL_HANDLE;
+	VkDeviceMemory alphaTextureImageMemory = VK_NULL_HANDLE;
+	VkImageView alphaTextureImageView = VK_NULL_HANDLE;
+	uint32_t vertexCount = 0;
+	uint32_t indexCount = 0;
+	uint32_t indexStartIndex = 0;
+	glm::mat4 model = glm::mat4(1.0f);
 	bool hasTexture = false;
 	bool hasAlphaTexture = false;
 	bool dirty = true;
@@ -194,7 +195,7 @@ private:
 	VkBuffer createVertexBuffer(const std::vector<Vertex>& vertices, VkDeviceMemory& vertexBufferMemory);
 	VkBuffer createIndexBuffer(const std::vector<uint32_t>& indices, VkDeviceMemory& indexBufferMemory);
 	std::unique_ptr<MeshGeometry> createMeshGeometry(const Mesh& mesh);
-	std::unique_ptr<MeshGeometry> createMeshGeometry(const SimpleMeshInfo& mesh);
+	std::unique_ptr<MeshGeometry> createMeshGeometry(const SimpleMeshInfo& mesh, const SimpleMaterialInfo& material);
 	void createMeshGeometries(const Model& model);
 	void createMeshGeometries(const SimpleModel& model);
 	void createGlobalUniformBuffers();
@@ -230,7 +231,7 @@ private:
 
 	void updateFPSCounter();
 	void updateGlobaltUniformBuffer(uint32_t frameIndex);
-	void updateObjectUniformBuffer(uint32_t frameIndex);
+	void updateObjectUniformBuffer(uint32_t frameIndex, uint32_t index, const ObjectUniformBufferObject& objectUniformBufferObject);
 	void updateMaterialUniformBuffer(uint32_t frameIndex, uint32_t index, const MaterialUniformBufferObject& materialUniformBufferObject);
 	void updateImageView(VkImageView imageView, VkImageView alphaImageView, uint32_t frameIndex);
 
@@ -354,9 +355,12 @@ private:
 	std::vector<std::unique_ptr<MeshGeometry>> meshGeometries;
 	std::vector<VkImageView> imageViews;
 
-	SimpleModel objModel;
+	SimpleModel sponza;
+	SimpleModel cube;
+	SimpleModel sphere;
 
-	size_t dynamicAlignment = 0;
+	size_t materialUniformBufferAlignment = 0;
+	size_t objectUniformBufferAlignment = 0;
 	uint32_t mipLevels = 1;
 
 	bool anisotropyEnable = true;

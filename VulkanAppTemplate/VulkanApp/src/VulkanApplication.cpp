@@ -628,6 +628,13 @@ void VulkanApplication::createDescriptorSetLayout()
 	globalUniformBufferLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	globalUniformBufferLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding objectUniformBufferLayoutBinding{};
+	objectUniformBufferLayoutBinding.binding = 1;
+	objectUniformBufferLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+	objectUniformBufferLayoutBinding.descriptorCount = 1;
+	objectUniformBufferLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	objectUniformBufferLayoutBinding.pImmutableSamplers = nullptr;
+
 	VkDescriptorSetLayoutBinding materialUniformBufferLayoutBinding{};
 	materialUniformBufferLayoutBinding.binding = 2;
 	materialUniformBufferLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -649,7 +656,7 @@ void VulkanApplication::createDescriptorSetLayout()
 	alphaSamplerLayoutBingding.pImmutableSamplers = nullptr;
 	alphaSamplerLayoutBingding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 4> descriptorSetLayoutBindings{ globalUniformBufferLayoutBinding, materialUniformBufferLayoutBinding, samplerLayoutBingding, alphaSamplerLayoutBingding };
+	std::array<VkDescriptorSetLayoutBinding, 5> descriptorSetLayoutBindings{ globalUniformBufferLayoutBinding, objectUniformBufferLayoutBinding, materialUniformBufferLayoutBinding, samplerLayoutBingding, alphaSamplerLayoutBingding };
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetlayoutCreateInfo{};
 	descriptorSetlayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1114,10 +1121,8 @@ std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const Mesh& 
 	return meshGeometry;
 }
 
-std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const SimpleMeshInfo& mesh)
+std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const SimpleMeshInfo& mesh, const SimpleMaterialInfo& material)
 {
-	const auto& material = objModel.materials[mesh.materialIndex];
-
 	auto meshGeometry = std::make_unique<MeshGeometry>();
 	meshGeometry->material = std::make_shared<Material>();
 
@@ -1163,7 +1168,7 @@ void VulkanApplication::createMeshGeometries(const SimpleModel& model)
 {
 	for (auto i = 0; i < model.meshes.size(); i++)
 	{
-		auto meshGeometry = createMeshGeometry(model.meshes[i]);
+		auto meshGeometry = createMeshGeometry(model.meshes[i], model.materials[model.meshes[i].materialIndex]);
 
 		meshGeometries.emplace_back(std::move(meshGeometry));
 	}
@@ -1171,7 +1176,7 @@ void VulkanApplication::createMeshGeometries(const SimpleModel& model)
 
 void VulkanApplication::createGlobalUniformBuffers()
 {
-	VkDeviceSize bufferSize = sizeof (GlobalUniformBufferObject);
+	VkDeviceSize bufferSize = sizeof(GlobalUniformBufferObject);
 
 	globalUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 	globalUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
@@ -1189,7 +1194,7 @@ void VulkanApplication::createGlobalUniformBuffers()
 
 void VulkanApplication::createObjectUniformBuffers()
 {
-	VkDeviceSize bufferSize = sizeof(ObjectUniformBufferObject);
+	VkDeviceSize bufferSize = objectUniformBufferAlignment * meshGeometries.size();
 
 	objectUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 	objectUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
@@ -1207,7 +1212,7 @@ void VulkanApplication::createObjectUniformBuffers()
 
 void VulkanApplication::createMaterialUniformBuffers()
 {
-	VkDeviceSize bufferSize = dynamicAlignment * meshGeometries.size();
+	VkDeviceSize bufferSize = materialUniformBufferAlignment * meshGeometries.size();
 
 	materialUniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 	materialUniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
@@ -1476,10 +1481,15 @@ void VulkanApplication::recordCommandBuffer(VkCommandBuffer inCommandBuffer, uin
 
 		updateMaterialUniformBuffer(currentFrame, i, materialUniformBufferObject);
 
+		ObjectUniformBufferObject objectUniformBufferObject;
+		objectUniformBufferObject.model = meshGeometry->model;
+
+		updateObjectUniformBuffer(currentFrame, i, objectUniformBufferObject);
+
 		updateImageView(meshGeometry->textureImageView, meshGeometry->alphaTextureImageView, currentFrame);
 
-		uint32_t dynamicOffset = i * static_cast<uint32_t>(dynamicAlignment);
-		vkCmdBindDescriptorSets(inCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 1, &dynamicOffset);
+		uint32_t dynamicOffsets[2] = { i * static_cast<uint32_t>(objectUniformBufferAlignment), i * static_cast<uint32_t>(materialUniformBufferAlignment) };
+		vkCmdBindDescriptorSets(inCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 2, dynamicOffsets);
 
 		// The actual vkCmdDraw function is a bit anticlimactic, but it's so simple because of all the information we specified in advance. 
 		// It has the following parameters, aside from the command buffer:
@@ -1863,12 +1873,13 @@ void VulkanApplication::loadResources()
 	//model.load(ResourceBase + "models/texture_bunny.obj");
 	//model.load(ResourceBase + "sponza_with_ship.obj");
 
-	//objModel = loadSimpleWavefrontObj((ResourceBase + "models/cube.obj").c_str());
+	cube = loadSimpleWavefrontObj((ResourceBase + "models/cube.obj").c_str());
+	sphere = loadSimpleWavefrontObj((ResourceBase + "models/sphere.obj").c_str());
 	//objModel = loadSimpleWavefrontObj((ResourceBase + "models/plane.obj").c_str());
-	objModel = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
+	sponza = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
 
-	vertexBuffer = createVertexBuffer(objModel.vertices, vertexBufferMemory);
-	indexBuffer = createIndexBuffer(objModel.indices, indexBufferMemory);
+	vertexBuffer = createVertexBuffer(sponza.vertices, vertexBufferMemory);
+	indexBuffer = createIndexBuffer(sponza.indices, indexBufferMemory);
 
 	//model.mesh.vertices = quadVertices;
 	//model.mesh.indices = quadIndices;
@@ -1910,30 +1921,18 @@ void VulkanApplication::updateGlobaltUniformBuffer(uint32_t frameIndex)
 	memcpy_s(globalUniformBuffersMapped[frameIndex], sizeof(ubo), &ubo, sizeof(ubo));
 }
 
-void VulkanApplication::updateObjectUniformBuffer(uint32_t frameIndex)
+void VulkanApplication::updateObjectUniformBuffer(uint32_t frameIndex, uint32_t index, const ObjectUniformBufferObject& objectUniformBufferObject)
 {
-	static auto startTime = std::chrono::high_resolution_clock::now();
-
-	auto currentTime = std::chrono::high_resolution_clock::now();
-
-	auto time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-	ObjectUniformBufferObject ubo{};
-	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	ubo.model = glm::mat4(1.0f);
-	ubo.view = camera.GetViewMatrix();
-	ubo.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / static_cast<float>(swapChainExtent.height), 0.1f, 100.0f);
-	ubo.projection[1][1] *= -1.0f;
-
-	memcpy_s(objectUniformBuffersMapped[frameIndex], sizeof(ubo), &ubo, sizeof(ubo));
+	auto offset = static_cast<uint8_t*>(objectUniformBuffersMapped[frameIndex]);
+	offset += index * objectUniformBufferAlignment;
+	memcpy_s(offset, sizeof(ObjectUniformBufferObject), &objectUniformBufferObject, sizeof(ObjectUniformBufferObject));
 }
 
 void VulkanApplication::updateMaterialUniformBuffer(uint32_t frameIndex, uint32_t index, const MaterialUniformBufferObject& materialUniformBufferObject)
 {
 	auto offset = static_cast<uint8_t*>(materialUniformBuffersMapped[frameIndex]);
-	offset += index * dynamicAlignment;
+	offset += index * materialUniformBufferAlignment;
 	memcpy_s(offset, sizeof(MaterialUniformBufferObject), &materialUniformBufferObject, sizeof(MaterialUniformBufferObject));
-	//memcpy_s(materialUniformBuffersMapped[frameIndex], sizeof(MaterialUniformBufferObject), &materialUniformBufferObject, sizeof(MaterialUniformBufferObject));
 }
 
 void VulkanApplication::updateImageView(VkImageView imageView, VkImageView alphaImageView, uint32_t frameIndex)
@@ -2070,7 +2069,8 @@ void VulkanApplication::initVulkan()
 	loadResources();
 
 	//createMeshGeometries(model);
-	createMeshGeometries(objModel);
+	createMeshGeometries(sponza);
+	createMeshGeometries(sphere);
 
 	createGlobalUniformBuffers();
 	createObjectUniformBuffers();
@@ -2232,11 +2232,13 @@ bool VulkanApplication::isDeviceSuitable(VkPhysicalDevice inDevice)
 
 	// Calculate required alignment based on minimum device offset alignment
 	size_t minUniformBufferOffsetAlignment = deviceProperties.limits.minUniformBufferOffsetAlignment;
-	dynamicAlignment = sizeof(MaterialUniformBufferObject);
+	materialUniformBufferAlignment = sizeof(MaterialUniformBufferObject);
+	objectUniformBufferAlignment = sizeof(ObjectUniformBufferObject);
 
 	if (minUniformBufferOffsetAlignment > 0)
 	{
-		dynamicAlignment = (dynamicAlignment + minUniformBufferOffsetAlignment - 1) & ~(minUniformBufferOffsetAlignment - 1);
+		materialUniformBufferAlignment = (materialUniformBufferAlignment + minUniformBufferOffsetAlignment - 1) & ~(minUniformBufferOffsetAlignment - 1);
+		objectUniformBufferAlignment = (objectUniformBufferAlignment + minUniformBufferOffsetAlignment - 1) & ~(minUniformBufferOffsetAlignment - 1);
 	}
 
 	VkPhysicalDeviceFeatures physicalDeviceFeatures;
@@ -2498,7 +2500,6 @@ void VulkanApplication::drawFrame()
 	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
 
 	updateGlobaltUniformBuffer(currentFrame);
-	updateObjectUniformBuffer(currentFrame);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

@@ -25,8 +25,8 @@ layout (location = 2) out vec3 fragColor;
 
 void main()
 {
-    gl_Position = globalUBO.projection * globalUBO.view * globalUBO.model * vec4(inPosition, 1.0);
-    normal = (globalUBO.model * vec4(inNormal, 0.0)).xyz;
+    gl_Position = globalUBO.projection * globalUBO.view * objectUBO.model * vec4(inPosition, 1.0);
+    normal = (objectUBO.model * vec4(inNormal, 0.0)).xyz;
     texcoord = inTexcoord;
     fragColor = inColor;
 }
