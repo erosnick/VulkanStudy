@@ -1,8 +1,8 @@
-#ifndef SIMPLE_MODEL_HPP_CEC8C14F_3678_43C9_8121_BDB60B23D840
-#define SIMPLE_MODEL_HPP_CEC8C14F_3678_43C9_8121_BDB60B23D840
+#pragma once
 
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include <cstdint>
 
@@ -25,6 +25,9 @@ struct SimpleMaterialInfo
 	glm::vec3 diffuseColor;
 	std::string diffuseTexturePath;
 	std::string alphaTexturePath;
+
+	float metallic = 0.0f;
+	float roughness = 0.0f;
 };
 
 // A simple mesh
@@ -58,6 +61,8 @@ struct SimpleMeshInfo
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
+
+	glm::mat4 transform = glm::mat4(1.0f);
 };
 
 // Simple model.
@@ -70,6 +75,11 @@ struct SimpleModel
 
 	std::vector<SimpleMaterialInfo> materials;
 	std::vector<SimpleMeshInfo> meshes;
+
+	void setTransform(const glm::mat4& transform)
+	{
+		std::transform(meshes.begin(), meshes.end(), meshes.begin(), [=](SimpleMeshInfo mesh) { mesh.transform = transform; return mesh; });
+	}
 
 	struct Data_
 	{
@@ -88,7 +98,7 @@ struct SimpleModel
 	std::vector<uint32_t> indices;
 
 	std::size_t indexCount = 0;
-};
 
-#endif // SIMPLE_MODEL_HPP_CEC8C14F_3678_43C9_8121_BDB60B23D840
+	glm::mat4 transform = glm::mat4(1.0f);
+};
 

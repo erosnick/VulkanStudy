@@ -21,6 +21,8 @@ struct Material
 	// relative index of refraction(n1/n2)
 	float ior;
 	float eta;
+	float metallic;
+	float roughness;
 	bool hasNormalMap = false;
 	std::string diffuseTexturePath;
 	std::string alphaTexturePath;

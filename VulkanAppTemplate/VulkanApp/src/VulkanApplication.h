@@ -45,24 +45,44 @@ const std::vector<uint32_t> quadIndices =
 	6, 7, 4
 };
 
+const glm::vec4 lightPositions[] = {
+	glm::vec4(-10.0f,  10.0f, 10.0f, 0.0f),
+	glm::vec4( 10.0f,  10.0f, 10.0f, 0.0f),
+	glm::vec4(-10.0f, -10.0f, 10.0f, 0.0f),
+	glm::vec4( 10.0f, -10.0f, 10.0f, 0.0f)
+};
+const glm::vec4 lightColors[] = {
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f)
+};
+
 struct GlobalUniformBufferObject
 {
-	glm::mat4 model;
 	glm::mat4 view;
 	glm::mat4 projection;
+	glm::vec4 cameraPosition;
 };
 
 struct ObjectUniformBufferObject
 {
 	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 projection;
 };
 
 struct MaterialUniformBufferObject
 {
-	glm::vec4 diffuseColor = glm::vec4(0.0f);
-	glm::vec4 padding = glm::vec4(0.0f);
+	glm::vec4 albedo = glm::vec4(1.0f);
+	float metallic = 0.0f;
+	float roughness = 0.5f;
+	float ao = 1.0f;
+	float padding = 0.0f;
+};
+
+struct LightUniformBufferObject
+{
+	glm::vec4 lightPositions[4];
+	glm::vec4 lightColors[4];
 };
 
 enum class Channel : int32_t
@@ -93,6 +113,11 @@ static bool middleMouseButtonDown = false;
 static glm::vec2 lastMousePosition;
 
 const float FrameTime = 0.0166667f;
+static float frameTime = 0.0f;
+
+const int32_t numOfRows = 7;
+const int32_t numOfColumns = 7;
+const float spacing = 2.5f;
 
 #ifdef NDEBUG
 const bool EnableValidationLayers = false;
@@ -156,11 +181,11 @@ struct MeshGeometry
 	uint32_t vertexCount = 0;
 	uint32_t indexCount = 0;
 	uint32_t indexStartIndex = 0;
-	glm::mat4 model = glm::mat4(1.0f);
 	bool hasTexture = false;
 	bool hasAlphaTexture = false;
 	bool dirty = true;
 	std::shared_ptr<Material> material;
+	glm::mat4 transform = glm::mat4(1.0f);
 };
 
 class VulkanApplication
@@ -201,6 +226,7 @@ private:
 	void createGlobalUniformBuffers();
 	void createObjectUniformBuffers();
 	void createMaterialUniformBuffers();
+	void createLightUniformBuffers();
 	void createCommandBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
@@ -233,9 +259,11 @@ private:
 	void loadResources();
 
 	void updateFPSCounter();
-	void updateGlobaltUniformBuffer(uint32_t frameIndex);
+	void updateGlobalUniformBuffer(uint32_t frameIndex);
 	void updateObjectUniformBuffer(uint32_t frameIndex, uint32_t index, const ObjectUniformBufferObject& objectUniformBufferObject);
 	void updateMaterialUniformBuffer(uint32_t frameIndex, uint32_t index, const MaterialUniformBufferObject& materialUniformBufferObject);
+	void updateLightUniformBuffer(uint32_t frameIndex);
+
 	void updateImageView(VkImageView imageView, VkImageView alphaImageView, uint32_t frameIndex);
 
 	void initWindow();
@@ -334,6 +362,9 @@ private:
 	std::vector<VkBuffer> materialUniformBuffers;
 	std::vector<VkDeviceMemory> materialUniformBuffersMemory;
 	std::vector<void*> materialUniformBuffersMapped;
+	std::vector<VkBuffer> lightUniformBuffers;
+	std::vector<VkDeviceMemory> lightUniformBuffersMemory;
+	std::vector<void*> lightUniformBuffersMapped;
 	std::vector<VkCommandBuffer> commandBuffers;
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -353,7 +384,7 @@ private:
 	int32_t frameCount;
 
 	Model model;
-	Camera camera{ glm::vec3(0.0f, 1.0f, 3.0f) };
+	Camera camera{ glm::vec3(8.0f, 5.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -180.0f };
 
 	std::vector<std::unique_ptr<MeshGeometry>> meshGeometries;
 	std::vector<VkImageView> imageViews;
