@@ -203,6 +203,8 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 			meshInfo.vertices = vertices;
 			meshInfo.indices = indices;
 
+			ret.indexCount += indexCount;
+
 			ret.meshes.emplace_back(meshInfo);
 		}
 	}

@@ -205,6 +205,9 @@ private:
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void createSyncObjects();
+
+	SimpleModel mergeModels(const std::vector<SimpleModel>& models);
+
 	void recordCommandBuffer(VkCommandBuffer inCommandBuffer, uint32_t imageIndex);
 
 	VkShaderModule createShaderModule(const std::vector<char>& shaderCode);
@@ -358,10 +361,15 @@ private:
 	SimpleModel sponza;
 	SimpleModel cube;
 	SimpleModel sphere;
+	
+	std::vector<SimpleModel> models;
 
 	size_t materialUniformBufferAlignment = 0;
 	size_t objectUniformBufferAlignment = 0;
 	uint32_t mipLevels = 1;
 
 	bool anisotropyEnable = true;
+
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
 };

@@ -1396,6 +1396,38 @@ void VulkanApplication::createSyncObjects()
 	}
 }
 
+SimpleModel VulkanApplication::mergeModels(const std::vector<SimpleModel>& models)
+{
+	size_t materialIndexOffset = 0;
+	size_t indexOffset = 0;
+	size_t indexCount = 0;
+
+	SimpleModel result;
+
+	for (auto model : models)
+	{
+		result.materials.insert(result.materials.end(), model.materials.begin(), model.materials.end());
+
+		std::transform(model.indices.begin(), model.indices.end(), model.indices.begin(), [=](uint32_t index) { return index + static_cast<uint32_t>(indexOffset); });
+
+		for (auto& mesh : model.meshes)
+		{
+			mesh.materialIndex += materialIndexOffset;
+			mesh.indexStartIndex += indexCount;
+		}
+
+		materialIndexOffset += model.materials.size();
+		indexOffset += model.vertices.size();
+		indexCount += model.indexCount;
+
+		result.meshes.insert(result.meshes.end(), model.meshes.begin(), model.meshes.end());
+		result.vertices.insert(result.vertices.end(), model.vertices.begin(), model.vertices.end());
+		result.indices.insert(result.indices.end(), model.indices.begin(), model.indices.end());
+	}
+
+	return result;
+}
+
 void VulkanApplication::recordCommandBuffer(VkCommandBuffer inCommandBuffer, uint32_t imageIndex)
 {
 	VkCommandBufferBeginInfo commandBufferBeginInfo{};
@@ -1878,11 +1910,18 @@ void VulkanApplication::loadResources()
 	//objModel = loadSimpleWavefrontObj((ResourceBase + "models/plane.obj").c_str());
 	sponza = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
 
-	vertexBuffer = createVertexBuffer(sponza.vertices, vertexBufferMemory);
-	indexBuffer = createIndexBuffer(sponza.indices, indexBufferMemory);
+	models.emplace_back(cube);
+	models.emplace_back(sphere);
+	models.emplace_back(sponza);
+	
+	SimpleModel testModel = mergeModels(models);
+	//createMeshGeometries(model);
 
-	//model.mesh.vertices = quadVertices;
-	//model.mesh.indices = quadIndices;
+	createMeshGeometries(testModel);
+	//createMeshGeometries(sphere);
+
+	vertexBuffer = createVertexBuffer(testModel.vertices, vertexBufferMemory);
+	indexBuffer = createIndexBuffer(testModel.indices, indexBufferMemory);
 }
 
 void VulkanApplication::updateFPSCounter()
@@ -2067,10 +2106,6 @@ void VulkanApplication::initVulkan()
 
 	createTextureSampler();
 	loadResources();
-
-	//createMeshGeometries(model);
-	createMeshGeometries(sponza);
-	createMeshGeometries(sphere);
 
 	createGlobalUniformBuffers();
 	createObjectUniformBuffers();

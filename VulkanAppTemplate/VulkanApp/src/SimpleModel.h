@@ -51,10 +51,10 @@ struct SimpleMeshInfo
 	bool textured : 1;
 	bool alphaTextured : 1;
 
-	std::size_t vertexStartIndex;
-	std::size_t vertexCount;
-	std::size_t indexStartIndex;
-	std::size_t indexCount;
+	std::size_t vertexStartIndex = 0;
+	std::size_t vertexCount = 0;
+	std::size_t indexStartIndex = 0;
+	std::size_t indexCount = 0;
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
@@ -86,6 +86,8 @@ struct SimpleModel
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
+
+	std::size_t indexCount = 0;
 };
 
 #endif // SIMPLE_MODEL_HPP_CEC8C14F_3678_43C9_8121_BDB60B23D840
