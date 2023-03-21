@@ -26,8 +26,11 @@ struct SimpleMaterialInfo
 	std::string diffuseTexturePath;
 	std::string alphaTexturePath;
 
-	float metallic = 0.0f;
-	float roughness = 0.0f;
+	uint32_t diffuseTextureIndex = 0;
+	uint32_t alphaTextureIndex = 0;
+
+	float metallic = 0.5f;
+	float roughness = 0.5f;
 };
 
 // A simple mesh

@@ -76,7 +76,8 @@ struct MaterialUniformBufferObject
 	float metallic = 0.0f;
 	float roughness = 0.5f;
 	float ao = 1.0f;
-	float padding = 0.0f;
+	int32_t diffuseTextureIndex = 0;
+	int32_t alphaTextureIndex = 0;
 };
 
 struct LightUniformBufferObject
@@ -118,6 +119,8 @@ static float frameTime = 0.0f;
 const int32_t numOfRows = 7;
 const int32_t numOfColumns = 7;
 const float spacing = 2.5f;
+
+const int32_t TextureUnits = 64;
 
 #ifdef NDEBUG
 const bool EnableValidationLayers = false;
@@ -172,12 +175,7 @@ struct MeshGeometry
 	VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
 	VkBuffer indexBuffer = VK_NULL_HANDLE;
 	VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
-	VkImage textureImage = VK_NULL_HANDLE;
-	VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
-	VkImageView textureImageView = VK_NULL_HANDLE;
-	VkImage alphaTextureImage = VK_NULL_HANDLE;
-	VkDeviceMemory alphaTextureImageMemory = VK_NULL_HANDLE;
-	VkImageView alphaTextureImageView = VK_NULL_HANDLE;
+	uint32_t textureImageViewIndex = 0;
 	uint32_t vertexCount = 0;
 	uint32_t indexCount = 0;
 	uint32_t indexStartIndex = 0;
@@ -257,6 +255,8 @@ private:
 	void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t width, int32_t height, uint32_t mipLevels);
 
 	void loadResources();
+
+	void createTextureImageViews();
 
 	void updateFPSCounter();
 	void updateGlobalUniformBuffer(uint32_t frameIndex);
@@ -372,6 +372,9 @@ private:
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImageView> swapChainImageViews;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
+	std::vector<VkImage> textureImages;
+	std::vector<VkDeviceMemory> textureImageMemories;
+	std::vector<VkImageView> textureImageViews;
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	VkDebugUtilsMessengerEXT debugMessenger;
@@ -384,7 +387,7 @@ private:
 	int32_t frameCount;
 
 	Model model;
-	Camera camera{ glm::vec3(8.0f, 5.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -180.0f };
+	Camera camera{ glm::vec3(8.0f, 15.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -180.0f };
 
 	std::vector<std::unique_ptr<MeshGeometry>> meshGeometries;
 	std::vector<VkImageView> imageViews;
@@ -392,6 +395,7 @@ private:
 	SimpleModel sponza;
 	SimpleModel cube;
 	SimpleModel sphere;
+	SimpleModel mergedModel;
 	
 	std::vector<SimpleModel> models;
 
@@ -403,4 +407,6 @@ private:
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
+
+	std::vector<std::string> textureImagePaths;
 };

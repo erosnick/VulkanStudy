@@ -107,6 +107,7 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 
 			bool const textured = !ret.materials[matId].diffuseTexturePath.empty();
 			bool const alphaTextured = !ret.materials[matId].alphaTexturePath.empty();
+
 			if (!textured)
 			{
 				opos = &ret.dataUntextured.positions;

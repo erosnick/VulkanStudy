@@ -12,7 +12,9 @@ layout (binding = 2) uniform MaterialUniformBufferObject
     float metallic;
 	float roughness;
 	float ao;
-	float padding;
+	int diffuseTextureIndex;
+    int alphaTextureIndex;
+
 } materialUniformBufferObject;
 
 layout (binding = 3) uniform LightUniformBufferObject
@@ -21,7 +23,9 @@ layout (binding = 3) uniform LightUniformBufferObject
     vec4 lightColors[4];
 } lightUniformBufferObject;
 
-layout (binding = 4) uniform sampler2D textureSampler;
+const int TextureUnits = 64;
+
+layout (binding = 4) uniform sampler2D textureSampler[TextureUnits];
 layout (binding = 5) uniform sampler2D alphaTextureSampler;
 
 layout (location = 0) out vec4 outColor;
@@ -75,7 +79,7 @@ void main()
 
     if (materialUniformBufferObject.albedo.a > 0.0)
     {
-        textureAlbedo = texture(textureSampler, texcoord).rgb;
+        textureAlbedo = texture(textureSampler[materialUniformBufferObject.diffuseTextureIndex], texcoord).rgb;
     }
     else
     {
@@ -84,7 +88,7 @@ void main()
 
     if (materialUniformBufferObject.albedo.a > 1.0)
     {
-        float alpha = texture(alphaTextureSampler, texcoord).r;
+        float alpha = texture(textureSampler[materialUniformBufferObject.alphaTextureIndex], texcoord).r;
 
         if (alpha < 0.1)
         {

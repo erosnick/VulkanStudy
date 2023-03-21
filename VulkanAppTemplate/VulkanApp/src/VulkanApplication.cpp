@@ -391,6 +391,8 @@ void VulkanApplication::createLogicalDevice()
 		physicalDeviceFeatures.samplerAnisotropy = VK_FALSE;
 	}
 
+	physicalDeviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
+
 	VkDeviceCreateInfo deviceCreateInfo{};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
@@ -410,6 +412,14 @@ void VulkanApplication::createLogicalDevice()
 	{
 		deviceCreateInfo.enabledLayerCount = 0;
 	}
+
+	VkPhysicalDeviceDescriptorIndexingFeaturesEXT indexingFeatures{};
+	indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+	indexingFeatures.pNext = nullptr;
+	indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+	indexingFeatures.runtimeDescriptorArray = VK_TRUE;
+
+	deviceCreateInfo.pNext = &indexingFeatures;
 
 	VkCheck(vkCreateDevice(physicalDevice, &deviceCreateInfo, allocator, &device), "Failed to create logical device!");
 
@@ -651,7 +661,7 @@ void VulkanApplication::createDescriptorSetLayout()
 
 	VkDescriptorSetLayoutBinding samplerLayoutBingding{};
 	samplerLayoutBingding.binding = 4;
-	samplerLayoutBingding.descriptorCount = 1;
+	samplerLayoutBingding.descriptorCount = static_cast<uint32_t>(textureImagePaths.size());
 	samplerLayoutBingding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	samplerLayoutBingding.pImmutableSamplers = nullptr;
 	samplerLayoutBingding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -674,6 +684,16 @@ void VulkanApplication::createDescriptorSetLayout()
 	descriptorSetlayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetlayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
 	descriptorSetlayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
+
+	VkDescriptorBindingFlagsEXT bindFlag = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+
+	VkDescriptorSetLayoutBindingFlagsCreateInfoEXT extendedInfo{};
+	extendedInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
+	extendedInfo.pNext = nullptr;
+	extendedInfo.bindingCount = 1u;
+	extendedInfo.pBindingFlags = &bindFlag;
+
+	descriptorSetlayoutCreateInfo.pNext = &extendedInfo;
 
 	VkCheck(vkCreateDescriptorSetLayout(device, &descriptorSetlayoutCreateInfo, 
 										allocator, &descriptorSetLayout), "Failed to create descriptor set layout");
@@ -1120,8 +1140,6 @@ std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const Mesh& 
 
 	if (mesh.getMaterial()->hasTexture())
 	{
-		meshGeometry->textureImage = createTextureImage(meshGeometry->textureImageMemory, ResourceBase + mesh.getMaterial()->diffuseTexturePath);
-		meshGeometry->textureImageView = createTextureImageView(meshGeometry->textureImage);
 		meshGeometry->hasTexture = true;
 
 		if (mesh.getMaterial()->hasAlphaTexture())
@@ -1147,6 +1165,8 @@ std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const Simple
 	meshGeometry->indexCount = static_cast<uint32_t>(mesh.indices.size());
 	meshGeometry->material->diffuseTexturePath = material.diffuseTexturePath;
 	meshGeometry->material->alphaTexturePath = material.alphaTexturePath;
+	meshGeometry->material->diffuseTextureIndex = material.diffuseTextureIndex;
+	meshGeometry->material->alphaTextureIndex = material.alphaTextureIndex;
 	meshGeometry->material->Kd = material.diffuseColor;
 	meshGeometry->material->metallic = material.metallic;
 	meshGeometry->material->roughness = material.roughness;
@@ -1154,14 +1174,10 @@ std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const Simple
 
 	if (textured)
 	{
-		meshGeometry->textureImage = createTextureImage(meshGeometry->textureImageMemory, material.diffuseTexturePath);
-		meshGeometry->textureImageView = createTextureImageView(meshGeometry->textureImage);
 		meshGeometry->hasTexture = true;
 
 		if (mesh.alphaTextured)
 		{
-			meshGeometry->alphaTextureImage = createTextureImage(meshGeometry->alphaTextureImageMemory, material.alphaTexturePath);
-			meshGeometry->alphaTextureImageView = createTextureImageView(meshGeometry->alphaTextureImage);
 			meshGeometry->hasAlphaTexture = true;
 		}
 	}
@@ -1342,11 +1358,16 @@ void VulkanApplication::createDescriptorSets()
 		lightBufferInfo.offset = 0;
 		lightBufferInfo.range = sizeof(LightUniformBufferObject);
 
-		VkDescriptorImageInfo imageInfo{};
+		std::vector<VkDescriptorImageInfo> imageInfos;
+		
+		imageInfos.resize(textureImageViews.size());
 
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = textureImageView;
-		imageInfo.sampler = textureSampler;
+		for (auto i = 0; i < imageInfos.size(); i++)
+		{
+			imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageInfos[i].imageView = textureImageViews[i];
+			imageInfos[i].sampler = textureSampler;
+		}
 
 		std::array<VkWriteDescriptorSet, 6> writeDescriptorSets{};
 
@@ -1395,9 +1416,9 @@ void VulkanApplication::createDescriptorSets()
 		writeDescriptorSets[4].dstBinding = 4;
 		writeDescriptorSets[4].dstArrayElement = 0;
 		writeDescriptorSets[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		writeDescriptorSets[4].descriptorCount = 1;
+		writeDescriptorSets[4].descriptorCount = static_cast<uint32_t>(imageInfos.size());
 		writeDescriptorSets[4].pBufferInfo = nullptr;
-		writeDescriptorSets[4].pImageInfo = &imageInfo;
+		writeDescriptorSets[4].pImageInfo = imageInfos.data();
 		writeDescriptorSets[4].pTexelBufferView = nullptr;
 
 		writeDescriptorSets[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1407,7 +1428,7 @@ void VulkanApplication::createDescriptorSets()
 		writeDescriptorSets[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		writeDescriptorSets[5].descriptorCount = 1;
 		writeDescriptorSets[5].pBufferInfo = nullptr;
-		writeDescriptorSets[5].pImageInfo = &imageInfo;
+		writeDescriptorSets[5].pImageInfo = &imageInfos[0];
 		writeDescriptorSets[5].pTexelBufferView = nullptr;
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
@@ -1471,6 +1492,34 @@ SimpleModel VulkanApplication::mergeModels(const std::vector<SimpleModel>& model
 		result.meshes.insert(result.meshes.end(), model.meshes.begin(), model.meshes.end());
 		result.vertices.insert(result.vertices.end(), model.vertices.begin(), model.vertices.end());
 		result.indices.insert(result.indices.end(), model.indices.begin(), model.indices.end());
+	}
+
+	uint32_t textureImageViewCount = 0;
+	for (auto& material : result.materials)
+	{
+		if (!material.diffuseTexturePath.empty())
+		{
+			auto findResult = std::find(textureImagePaths.begin(), textureImagePaths.end(), material.diffuseTexturePath);
+
+			if (findResult == textureImagePaths.end())
+			{
+				textureImagePaths.emplace_back(material.diffuseTexturePath);
+				material.diffuseTextureIndex = textureImageViewCount;
+				textureImageViewCount++;
+			}
+
+			if (!material.alphaTexturePath.empty())
+			{
+				findResult = std::find(textureImagePaths.begin(), textureImagePaths.end(), material.alphaTexturePath);
+
+				if (findResult == textureImagePaths.end())
+				{
+					textureImagePaths.emplace_back(material.alphaTexturePath);
+					material.alphaTextureIndex = textureImageViewCount;
+					textureImageViewCount++;
+				}
+			}
+		}
 	}
 
 	return result;
@@ -1561,6 +1610,8 @@ void VulkanApplication::recordCommandBuffer(VkCommandBuffer inCommandBuffer, uin
 
 		materialUniformBufferObject.metallic = meshGeometry->material->metallic;
 		materialUniformBufferObject.roughness = meshGeometry->material->roughness;
+		materialUniformBufferObject.diffuseTextureIndex = meshGeometry->material->diffuseTextureIndex;
+		materialUniformBufferObject.alphaTextureIndex = meshGeometry->material->alphaTextureIndex;
 
 		updateMaterialUniformBuffer(currentFrame, i, materialUniformBufferObject);
 
@@ -1569,7 +1620,11 @@ void VulkanApplication::recordCommandBuffer(VkCommandBuffer inCommandBuffer, uin
 
 		updateObjectUniformBuffer(currentFrame, i, objectUniformBufferObject);
 
-		updateImageView(meshGeometry->textureImageView, meshGeometry->alphaTextureImageView, currentFrame);
+		// From the Vulkan specification :
+		// The descriptor set contents bound by a call to vkCmdBindDescriptorSets may be consumed during host execution of the command, 
+		// or during shader execution of the resulting draws, or any time in between.Thus, the contents must not be altered(overwritten
+		// by an update command, or freed) between when the command is recorded and when the command completes executing on the queue.
+		//updateImageView(meshGeometry->textureImageView, meshGeometry->alphaTextureImageView, currentFrame);
 
 		uint32_t dynamicOffsets[2] = { i * static_cast<uint32_t>(objectUniformBufferAlignment), i * static_cast<uint32_t>(materialUniformBufferAlignment) };
 		vkCmdBindDescriptorSets(inCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 2, dynamicOffsets);
@@ -1959,9 +2014,9 @@ void VulkanApplication::loadResources()
 	cube = loadSimpleWavefrontObj((ResourceBase + "models/cube.obj").c_str());
 	sphere = loadSimpleWavefrontObj((ResourceBase + "models/sphere.obj").c_str());
 	//objModel = loadSimpleWavefrontObj((ResourceBase + "models/plane.obj").c_str());
-	//sponza = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
+	sponza = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
 
-	auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 5.0f, 0.0f));
+	auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 15.0f, -5.0f));
 
 	cube.setTransform(transform);
 
@@ -1970,7 +2025,6 @@ void VulkanApplication::loadResources()
 	for (unsigned int i = 0; i < sizeof(lightPositions) / sizeof(lightPositions[0]); ++i)
 	{
 		transform = glm::translate(glm::mat4(1.0f), { lightPositions[i].x, lightPositions[i].y + 20.0f, lightPositions[i].z - 10.0f });
-		//transform = glm::scale(transform, glm::vec3(0.5f, 0.5f, 0.5f));
 
 		sphere.setTransform(transform);
 
@@ -1995,8 +2049,6 @@ void VulkanApplication::loadResources()
 				-10.0f
 			));
 
-			//transform = glm::scale(transform, glm::vec3(0.5f, 0.5f, 0.5f));
-
 			sphere.setTransform(transform);
 
 			SimpleMaterialInfo material;
@@ -2017,14 +2069,22 @@ void VulkanApplication::loadResources()
 
 	models.emplace_back(sponza);
 	
-	SimpleModel testModel = mergeModels(models);
+	mergedModel = mergeModels(models);
 	//createMeshGeometries(model);
+}
 
-	createMeshGeometries(testModel);
-	//createMeshGeometries(sphere);
+void VulkanApplication::createTextureImageViews()
+{
+	for (const auto& path : textureImagePaths)
+	{
+		VkDeviceMemory textureImageMemory;
+		auto textureImage = createTextureImage(textureImageMemory, ResourceBase + path);
+		auto textureImageView = createTextureImageView(textureImage);
 
-	vertexBuffer = createVertexBuffer(testModel.vertices, vertexBufferMemory);
-	indexBuffer = createIndexBuffer(testModel.indices, indexBufferMemory);
+		textureImageMemories.push_back(textureImageMemory);
+		textureImages.push_back(textureImage);
+		textureImageViews.push_back(textureImageView);
+	}
 }
 
 void VulkanApplication::updateFPSCounter()
@@ -2230,6 +2290,7 @@ void VulkanApplication::initVulkan()
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
+	loadResources();
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
 	createGraphicsCommandPool();
@@ -2241,7 +2302,14 @@ void VulkanApplication::initVulkan()
 	textureImageView = createTextureImageView(textureImage);
 
 	createTextureSampler();
-	loadResources();
+
+	createTextureImageViews();
+
+	createMeshGeometries(mergedModel);
+	//createMeshGeometries(sphere);
+
+	vertexBuffer = createVertexBuffer(mergedModel.vertices, vertexBufferMemory);
+	indexBuffer = createIndexBuffer(mergedModel.indices, indexBufferMemory);
 
 	createGlobalUniformBuffers();
 	createObjectUniformBuffers();
@@ -2416,6 +2484,16 @@ bool VulkanApplication::isDeviceSuitable(VkPhysicalDevice inDevice)
 	VkPhysicalDeviceFeatures physicalDeviceFeatures;
 	vkGetPhysicalDeviceFeatures(inDevice, &physicalDeviceFeatures);
 
+	VkPhysicalDeviceDescriptorIndexingFeaturesEXT indexingFeatures{};
+
+	indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+	indexingFeatures.pNext = nullptr;
+
+	VkPhysicalDeviceFeatures2 deviceFeatures{};
+	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	deviceFeatures.pNext = &indexingFeatures;
+	vkGetPhysicalDeviceFeatures2(inDevice, &deviceFeatures);
+
 	auto result = deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && physicalDeviceFeatures.geometryShader;
 
 	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(inDevice);
@@ -2431,7 +2509,12 @@ bool VulkanApplication::isDeviceSuitable(VkPhysicalDevice inDevice)
 		swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 	}
 
-	return queueFamilyIndices.isComplete() && extensionsSupported && swapChainAdequate && physicalDeviceFeatures.samplerAnisotropy;
+	return queueFamilyIndices.isComplete() && 
+					   extensionsSupported && 
+						 swapChainAdequate && 
+  physicalDeviceFeatures.samplerAnisotropy && 
+  physicalDeviceFeatures.shaderSampledImageArrayDynamicIndexing &&
+  indexingFeatures.descriptorBindingPartiallyBound && indexingFeatures.runtimeDescriptorArray;
 }
 
 int32_t VulkanApplication::rateDeviceSuitability(VkPhysicalDevice inDevice)
@@ -2742,11 +2825,9 @@ void VulkanApplication::cleanup()
 	vkFreeMemory(device, textureImageMemory, allocator);
 
 	vkDestroyBuffer(device, vertexBuffer, allocator);
-	vkUnmapMemory(device, vertexBufferMemory);
 	vkFreeMemory(device, vertexBufferMemory, allocator);
 
 	vkDestroyBuffer(device, indexBuffer, allocator);
-	vkUnmapMemory(device, indexBufferMemory);
 	vkFreeMemory(device, indexBufferMemory, allocator);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
@@ -2777,7 +2858,13 @@ void VulkanApplication::cleanup()
 		vkFreeMemory(device, lightUniformBuffersMemory[i], allocator);
 	}
 
-	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+	for (auto i = 0; i < textureImageViews.size(); i++)
+	{
+		vkDestroyImageView(device, textureImageViews[i], allocator);
+
+		vkDestroyImage(device, textureImages[i], allocator);
+		vkFreeMemory(device, textureImageMemories[i], allocator);
+	}
 
 	for (auto i = 0; i < meshGeometries.size(); i++)
 	{
@@ -2790,11 +2877,9 @@ void VulkanApplication::cleanup()
 		vkDestroyBuffer(device, meshGeometry->vertexBuffer, allocator);
 
 		vkFreeMemory(device, meshGeometry->vertexBufferMemory, allocator);
-
-		vkDestroyImageView(device, meshGeometry->textureImageView, allocator);
-		vkDestroyImage(device, meshGeometry->textureImage, allocator);
-		vkFreeMemory(device, meshGeometry->textureImageMemory, allocator);
 	}
+
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
