@@ -101,7 +101,5 @@ struct SimpleModel
 	std::vector<uint32_t> indices;
 
 	std::size_t indexCount = 0;
-
-	glm::mat4 transform = glm::mat4(1.0f);
 };
 

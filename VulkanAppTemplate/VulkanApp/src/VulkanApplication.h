@@ -46,10 +46,10 @@ const std::vector<uint32_t> quadIndices =
 };
 
 const glm::vec4 lightPositions[] = {
-	glm::vec4(-10.0f,  10.0f, 10.0f, 0.0f),
-	glm::vec4( 10.0f,  10.0f, 10.0f, 0.0f),
-	glm::vec4(-10.0f, -10.0f, 10.0f, 0.0f),
-	glm::vec4( 10.0f, -10.0f, 10.0f, 0.0f)
+	glm::vec4(-10.0f,  10.0f, 10.0f, 1.0f),
+	glm::vec4( 10.0f,  10.0f, 10.0f, 1.0f),
+	glm::vec4(-10.0f, -10.0f, 10.0f, 1.0f),
+	glm::vec4( 10.0f, -10.0f, 10.0f, 1.0f)
 };
 const glm::vec4 lightColors[] = {
 	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
@@ -100,7 +100,7 @@ const uint32_t WindowWidth = 1600;
 const uint32_t WindowHeight = 900;
 
 const std::vector<const char*> ValidationLayers = { "VK_LAYER_KHRONOS_validation" };
-const std::vector<const char*> DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+const std::vector<const char*> DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MAINTENANCE_4_EXTENSION_NAME };
 
 const std::string ResourceBase = "../Assets/";
 
@@ -140,15 +140,6 @@ std::string VkResultToString(VkResult result);
 static bool showDemoWindow = true;
 static bool showAnotherWindow = false;
 static ImVec4 clearColor = ImVec4(0.4f, 0.6f, 0.9f, 1.0f);
-
-static void checkVkResult(VkResult err)
-{
-	if (err == 0)
-		return;
-	fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
-	if (err < 0)
-		abort();
-}
 
 struct QueueFamilyIndices
 {
@@ -387,7 +378,8 @@ private:
 	int32_t frameCount;
 
 	Model model;
-	Camera camera{ glm::vec3(8.0f, 15.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -180.0f };
+	//Camera camera{ glm::vec3(8.0f, 15.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -180.0f };
+	Camera camera{ glm::vec3(0.0f, 0.0f, 24.0f) };
 
 	std::vector<std::unique_ptr<MeshGeometry>> meshGeometries;
 	std::vector<VkImageView> imageViews;

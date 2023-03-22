@@ -1,5 +1,7 @@
 #version 460
 
+#extension GL_EXT_nonuniform_qualifier : require
+
 layout (location = 0) in vec3 normal;
 layout (location = 1) in vec2 texcoord;
 layout (location = 2) in vec3 fragColor;
@@ -25,8 +27,8 @@ layout (binding = 3) uniform LightUniformBufferObject
 
 const int TextureUnits = 64;
 
-layout (binding = 4) uniform sampler2D textureSampler[TextureUnits];
-layout (binding = 5) uniform sampler2D alphaTextureSampler;
+layout (binding = 4) uniform sampler2D alphaTextureSampler;
+layout (binding = 5) uniform sampler2D textureSampler[];
 
 layout (location = 0) out vec4 outColor;
 
@@ -147,7 +149,7 @@ void main()
     // // this ambient lighting with environment lighting).
     vec3 ambient = vec3(0.03) * textureAlbedo * materialUniformBufferObject.ao;
 
-    vec3 finalColor = ambient + Lo * textureAlbedo;
+    vec3 finalColor = ambient + Lo * textureAlbedo * fragColor;
 
     // HDR tonemapping
     finalColor = finalColor / (finalColor + vec3(1.0));

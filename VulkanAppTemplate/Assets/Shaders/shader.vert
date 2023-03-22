@@ -26,9 +26,9 @@ layout (location = 4) out vec3 worldPosition;
 
 void main()
 {
-    gl_Position = globalUBO.projection * globalUBO.view * objectUBO.model * vec4(inPosition, 1.0);
-    normal = (objectUBO.model * vec4(inNormal, 0.0)).xyz;
     worldPosition = (objectUBO.model * vec4(inPosition, 1.0)).xyz;
+    gl_Position = globalUBO.projection * globalUBO.view * vec4(worldPosition, 1.0);
+    normal = (objectUBO.model * vec4(inNormal, 0.0)).xyz;
     texcoord = inTexcoord;
     cameraPosition = globalUBO.cameraPosition.xyz;
     fragColor = inColor;
