@@ -418,6 +418,8 @@ void VulkanApplication::createLogicalDevice()
 	indexingFeatures.pNext = nullptr;
 	indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
 	indexingFeatures.runtimeDescriptorArray = VK_TRUE;
+	indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+	indexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
 
 	deviceCreateInfo.pNext = &indexingFeatures;
 
@@ -659,39 +661,45 @@ void VulkanApplication::createDescriptorSetLayout()
 	lightUniformBufferLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	lightUniformBufferLayoutBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding samplerLayoutBingding{};
-	samplerLayoutBingding.binding = 4;
-	samplerLayoutBingding.descriptorCount = static_cast<uint32_t>(textureImagePaths.size());
-	samplerLayoutBingding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerLayoutBingding.pImmutableSamplers = nullptr;
-	samplerLayoutBingding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
 	VkDescriptorSetLayoutBinding alphaSamplerLayoutBingding{};
-	alphaSamplerLayoutBingding.binding = 5;
+	alphaSamplerLayoutBingding.binding = 4;
 	alphaSamplerLayoutBingding.descriptorCount = 1;
 	alphaSamplerLayoutBingding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	alphaSamplerLayoutBingding.pImmutableSamplers = nullptr;
 	alphaSamplerLayoutBingding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+	VkDescriptorSetLayoutBinding samplerLayoutBingding{};
+	samplerLayoutBingding.binding = 5;
+	samplerLayoutBingding.descriptorCount = static_cast<uint32_t>(textureImagePaths.size());
+	samplerLayoutBingding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerLayoutBingding.pImmutableSamplers = nullptr;
+	samplerLayoutBingding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+
 	std::array<VkDescriptorSetLayoutBinding, 6> descriptorSetLayoutBindings{ globalUniformBufferLayoutBinding,
 																		     objectUniformBufferLayoutBinding, 
 																			 materialUniformBufferLayoutBinding, 
 																			 lightUniformBufferLayoutBinding, 
-																			 samplerLayoutBingding,
-																			 alphaSamplerLayoutBingding };
+																			 alphaSamplerLayoutBingding,
+																			 samplerLayoutBingding };
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetlayoutCreateInfo{};
 	descriptorSetlayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetlayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
 	descriptorSetlayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
 
-	VkDescriptorBindingFlagsEXT bindFlag = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+	VkDescriptorBindingFlagsEXT bindFlags[6]{ VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT };
+
+	//bindFlags[5] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+	// 如果这里指定了VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT
+	// 那么在实际调用vkAllocateDescriptorSets的时候需要通过vkDescriptorSetVariableDescriptorCountAllocateInfo指定可变的描述符个数(variable descriptor count)
+	bindFlags[5] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
 
 	VkDescriptorSetLayoutBindingFlagsCreateInfoEXT extendedInfo{};
 	extendedInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
 	extendedInfo.pNext = nullptr;
-	extendedInfo.bindingCount = 1u;
-	extendedInfo.pBindingFlags = &bindFlag;
+	extendedInfo.bindingCount = _countof(bindFlags);
+	extendedInfo.pBindingFlags = bindFlags;
 
 	descriptorSetlayoutCreateInfo.pNext = &extendedInfo;
 
@@ -1324,13 +1332,29 @@ void VulkanApplication::createDescriptorPool()
 
 void VulkanApplication::createDescriptorSets()
 {
+	// https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/2501
+	// Did you specify the variable descriptor count through a vkDescriptorSetVariableDescriptorCountAllocateInfo to vkAllocateDescriptorSets ? 
+	// I got the tip from https ://gist.github.com/NotAPenguin0/284461ecc81267fa41a7fbc472cd3afe#creating-the-descriptor-sets.
+
+	// I received a similar validation error even though variable sized sampler2D arrays worked fine on my setup.However, variable sized image2D 
+	// arrays didn't work until I added the above info, which also fixed the validation error.
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+
+	VkDescriptorSetVariableDescriptorCountAllocateInfo setCounts = {};
+	setCounts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+	setCounts.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
+
+	// 这里counts的数量要等于上面的descriptorSetCount
+	uint32_t counts[2]{ static_cast<uint32_t>(textureImagePaths.size()), static_cast<uint32_t>(textureImagePaths.size()) };
+
+	setCounts.pDescriptorCounts = counts;
 
 	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo{};
 	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	descriptorSetAllocateInfo.descriptorPool = descriptorPool;
 	descriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 	descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts.data();
+	descriptorSetAllocateInfo.pNext = &setCounts;
 
 	descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -1416,9 +1440,9 @@ void VulkanApplication::createDescriptorSets()
 		writeDescriptorSets[4].dstBinding = 4;
 		writeDescriptorSets[4].dstArrayElement = 0;
 		writeDescriptorSets[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		writeDescriptorSets[4].descriptorCount = static_cast<uint32_t>(imageInfos.size());
+		writeDescriptorSets[4].descriptorCount = 1;
 		writeDescriptorSets[4].pBufferInfo = nullptr;
-		writeDescriptorSets[4].pImageInfo = imageInfos.data();
+		writeDescriptorSets[4].pImageInfo = &imageInfos[0];
 		writeDescriptorSets[4].pTexelBufferView = nullptr;
 
 		writeDescriptorSets[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1426,9 +1450,9 @@ void VulkanApplication::createDescriptorSets()
 		writeDescriptorSets[5].dstBinding = 5;
 		writeDescriptorSets[5].dstArrayElement = 0;
 		writeDescriptorSets[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		writeDescriptorSets[5].descriptorCount = 1;
+		writeDescriptorSets[5].descriptorCount = static_cast<uint32_t>(imageInfos.size());
 		writeDescriptorSets[5].pBufferInfo = nullptr;
-		writeDescriptorSets[5].pImageInfo = &imageInfos[0];
+		writeDescriptorSets[5].pImageInfo = imageInfos.data();
 		writeDescriptorSets[5].pTexelBufferView = nullptr;
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
@@ -2014,7 +2038,7 @@ void VulkanApplication::loadResources()
 	cube = loadSimpleWavefrontObj((ResourceBase + "models/cube.obj").c_str());
 	sphere = loadSimpleWavefrontObj((ResourceBase + "models/sphere.obj").c_str());
 	//objModel = loadSimpleWavefrontObj((ResourceBase + "models/plane.obj").c_str());
-	sponza = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
+	//sponza = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
 
 	auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 15.0f, -5.0f));
 
@@ -2145,7 +2169,7 @@ void VulkanApplication::updateLightUniformBuffer(uint32_t frameIndex)
 	ubo.lightPositions[0] = lightPositions[0];
 	ubo.lightPositions[1] = lightPositions[1];
 	ubo.lightPositions[2] = lightPositions[2];
-	ubo.lightPositions[2] = lightPositions[3];
+	ubo.lightPositions[3] = lightPositions[3];
 
 	ubo.lightColors[0] = lightColors[0];
 	ubo.lightColors[1] = lightColors[1];
@@ -2514,7 +2538,10 @@ bool VulkanApplication::isDeviceSuitable(VkPhysicalDevice inDevice)
 						 swapChainAdequate && 
   physicalDeviceFeatures.samplerAnisotropy && 
   physicalDeviceFeatures.shaderSampledImageArrayDynamicIndexing &&
-  indexingFeatures.descriptorBindingPartiallyBound && indexingFeatures.runtimeDescriptorArray;
+  indexingFeatures.descriptorBindingPartiallyBound && 
+  indexingFeatures.runtimeDescriptorArray &&
+  indexingFeatures.shaderSampledImageArrayNonUniformIndexing &&
+  indexingFeatures.descriptorBindingVariableDescriptorCount;
 }
 
 int32_t VulkanApplication::rateDeviceSuitability(VkPhysicalDevice inDevice)
