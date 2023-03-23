@@ -29,8 +29,8 @@ struct SimpleMaterialInfo
 	uint32_t diffuseTextureIndex = 0;
 	uint32_t alphaTextureIndex = 0;
 
-	float metallic = 0.5f;
-	float roughness = 0.5f;
+	float metallic = 0.1f;
+	float roughness = 0.25f;
 };
 
 // A simple mesh

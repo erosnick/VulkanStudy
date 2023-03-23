@@ -8,6 +8,8 @@ layout (location = 2) in vec3 fragColor;
 layout (location = 3) in vec3 cameraPosition;
 layout (location = 4) in vec3 worldPosition;
 
+const int LightCount = 16;
+
 layout (binding = 2) uniform MaterialUniformBufferObject
 {
     vec4 albedo;
@@ -17,13 +19,14 @@ layout (binding = 2) uniform MaterialUniformBufferObject
 	int diffuseTextureIndex;
     int alphaTextureIndex;
 
-} materialUniformBufferObject;
+} materialUBO;
 
 layout (binding = 3) uniform LightUniformBufferObject
 {
-    vec4 lightPositions[4];
-    vec4 lightColors[4];
-} lightUniformBufferObject;
+    vec4 lightPositions[LightCount];
+    vec4 lightColors[LightCount];
+    uint turnOnLightCount;
+} lightUBO;
 
 const int TextureUnits = 64;
 
@@ -77,20 +80,20 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 
 void main()
 {
-    vec3 textureAlbedo = vec3(1.0);
+    vec3 albedo = vec3(1.0);
 
-    if (materialUniformBufferObject.albedo.a > 0.0)
+    if (materialUBO.albedo.a > 0.0)
     {
-        textureAlbedo = texture(textureSampler[materialUniformBufferObject.diffuseTextureIndex], texcoord).rgb;
+        albedo = pow(texture(textureSampler[materialUBO.diffuseTextureIndex], texcoord).rgb, vec3(2.2));
     }
     else
     {
-        textureAlbedo = materialUniformBufferObject.albedo.rgb;
+        albedo = materialUBO.albedo.rgb;
     }
 
-    if (materialUniformBufferObject.albedo.a > 1.0)
+    if (materialUBO.albedo.a > 1.0)
     {
-        float alpha = texture(textureSampler[materialUniformBufferObject.alphaTextureIndex], texcoord).r;
+        float alpha = texture(textureSampler[materialUBO.alphaTextureIndex], texcoord).r;
 
         if (alpha < 0.1)
         {
@@ -104,22 +107,23 @@ void main()
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
     vec3 F0 = vec3(0.04); 
-    F0 = mix(F0, materialUniformBufferObject.albedo.rgb, materialUniformBufferObject.metallic);
+    F0 = mix(F0, albedo, materialUBO.metallic);
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
-    for(int i = 0; i < 4; ++i) 
+    
+    for(int i = 0; i < lightUBO.turnOnLightCount; ++i)
     {
         // calculate per-light radiance
-        vec3 L = normalize(lightUniformBufferObject.lightPositions[i].xyz - worldPosition);
+        vec3 L = normalize(lightUBO.lightPositions[i].xyz - worldPosition);
         vec3 H = normalize(V + L);
-        float distance = length(lightUniformBufferObject.lightPositions[i].xyz - worldPosition);
+        float distance = length(lightUBO.lightPositions[i].xyz - worldPosition);
         float attenuation = 1.0 / (distance * distance);
-        vec3 radiance = lightUniformBufferObject.lightColors[i].xyz * attenuation;
+        vec3 radiance = lightUBO.lightColors[i].xyz * attenuation;
 
         // Cook-Torrance BRDF
-        float NDF = distributionGGX(N, H, materialUniformBufferObject.roughness);
-        float G   = geometrySmith(N, V, L, materialUniformBufferObject.roughness);
+        float NDF = distributionGGX(N, H, materialUBO.roughness);
+        float G   = geometrySmith(N, V, L, materialUBO.roughness);
         vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
            
         vec3 numerator    = NDF * G * F; 
@@ -135,21 +139,21 @@ void main()
         // multiply kD by the inverse metalness such that only non-metals 
         // have diffuse lighting, or a linear blend if partly metal (pure metals
         // have no diffuse light).
-        kD *= 1.0 - materialUniformBufferObject.metallic;
+        kD *= 1.0 - materialUBO.metallic;
 
         // scale light by NdotL
         float NdotL = max(dot(N, L), 0.0);
 
         // add to outgoing radiance Lo
         // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
-        Lo += (kD * materialUniformBufferObject.albedo.rgb / PI + specular) * radiance * NdotL;
+        Lo += (kD * albedo.rgb / PI + specular) * radiance * NdotL;
     }   
     
     // // ambient lighting (note that the next IBL tutorial will replace 
     // // this ambient lighting with environment lighting).
-    vec3 ambient = vec3(0.03) * textureAlbedo * materialUniformBufferObject.ao;
+    vec3 ambient = vec3(0.03) * albedo * materialUBO.ao;
 
-    vec3 finalColor = ambient + Lo * textureAlbedo * fragColor;
+    vec3 finalColor = ambient + Lo * fragColor;
 
     // HDR tonemapping
     finalColor = finalColor / (finalColor + vec3(1.0));

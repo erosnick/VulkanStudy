@@ -256,6 +256,16 @@ void VulkanApplication::keyCallback(GLFWwindow* window, int key, int scancode, i
 	{
 		glfwSetWindowShouldClose(window, true);
 	}
+
+	if (key == GLFW_KEY_UP && action == GLFW_PRESS)
+	{
+		turnOnLightCount = (turnOnLightCount + 1) % (LightCount + 1);
+	}
+
+	if (key == GLFW_KEY_DOWN && action == GLFW_PRESS)
+	{
+		turnOnLightCount = (turnOnLightCount - 1) % (LightCount + 1);
+	}
 }
 
 void VulkanApplication::createInstance()
@@ -1345,7 +1355,7 @@ void VulkanApplication::createDescriptorSets()
 	setCounts.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
 
 	// 这里counts的数量要等于上面的descriptorSetCount
-	uint32_t counts[2]{ static_cast<uint32_t>(textureImagePaths.size()), static_cast<uint32_t>(textureImagePaths.size()) };
+	uint32_t counts[MAX_FRAMES_IN_FLIGHT]{ static_cast<uint32_t>(textureImagePaths.size()), static_cast<uint32_t>(textureImagePaths.size()) };
 
 	setCounts.pDescriptorCounts = counts;
 
@@ -1493,7 +1503,6 @@ SimpleModel VulkanApplication::mergeModels(const std::vector<SimpleModel>& model
 {
 	size_t materialIndexOffset = 0;
 	size_t indexOffset = 0;
-	size_t indexCount = 0;
 
 	SimpleModel result;
 
@@ -1506,12 +1515,12 @@ SimpleModel VulkanApplication::mergeModels(const std::vector<SimpleModel>& model
 		for (auto& mesh : model.meshes)
 		{
 			mesh.materialIndex += materialIndexOffset;
-			mesh.indexStartIndex += indexCount;
+			mesh.indexStartIndex += result.indexCount;
 		}
 
 		materialIndexOffset += model.materials.size();
 		indexOffset += model.vertices.size();
-		indexCount += model.indexCount;
+		result.indexCount += model.indexCount;
 
 		result.meshes.insert(result.meshes.end(), model.meshes.begin(), model.meshes.end());
 		result.vertices.insert(result.vertices.end(), model.vertices.begin(), model.vertices.end());
@@ -2038,7 +2047,8 @@ void VulkanApplication::loadResources()
 	cube = loadSimpleWavefrontObj((ResourceBase + "models/cube.obj").c_str());
 	sphere = loadSimpleWavefrontObj((ResourceBase + "models/sphere.obj").c_str());
 	//objModel = loadSimpleWavefrontObj((ResourceBase + "models/plane.obj").c_str());
-	//sponza = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
+	sponza = loadSimpleWavefrontObj((ResourceBase + "models/sponza_with_ship.obj").c_str());
+	marry = loadSimpleWavefrontObj((ResourceBase + "models/Marry.obj").c_str());
 
 	auto transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 15.0f, -5.0f));
 
@@ -2046,9 +2056,19 @@ void VulkanApplication::loadResources()
 
 	models.emplace_back(cube);
 
-	for (unsigned int i = 0; i < sizeof(lightPositions) / sizeof(lightPositions[0]); ++i)
+	transform = glm::translate(glm::mat4(1.0f), glm::vec3(-8.0f, 6.1f, -5.0f));
+	transform = glm::scale(transform, glm::vec3(2.0f, 2.0f, 2.0f));
+
+	marry.setTransform(transform);
+
+	models.emplace_back(marry);
+	
+	for (uint32_t i = 0; i < LightCount; ++i)
 	{
-		transform = glm::translate(glm::mat4(1.0f), { lightPositions[i].x, lightPositions[i].y + 20.0f, lightPositions[i].z - 10.0f });
+		lightPositions[i].y += 20.0f;
+		lightPositions[i].z += -10.0f;
+
+		transform = glm::translate(glm::mat4(1.0f), { lightPositions[i].x, lightPositions[i].y, lightPositions[i].z });
 
 		sphere.setTransform(transform);
 
@@ -2102,7 +2122,7 @@ void VulkanApplication::createTextureImageViews()
 	for (const auto& path : textureImagePaths)
 	{
 		VkDeviceMemory textureImageMemory;
-		auto textureImage = createTextureImage(textureImageMemory, ResourceBase + path);
+		auto textureImage = createTextureImage(textureImageMemory, path);
 		auto textureImageView = createTextureImageView(textureImage);
 
 		textureImageMemories.push_back(textureImageMemory);
@@ -2121,8 +2141,8 @@ void VulkanApplication::updateFPSCounter()
 	{
 		previousSeconds = currentSeconds;
 		double fps = (double)frameCount / elapsedSeconds;
-		auto temp = fmt::format("Vulkan [FPS: {0}] Camera:[x={1}, y={2}, z={3}, Yaw={4}, Pitch={5}]", static_cast<float>(fps), 
-			camera.Position.x, camera.Position.y, camera.Position.z, camera.Yaw, camera.Pitch);
+		auto temp = fmt::format("Vulkan [FPS: {0}] Triangles:{1} Camera:[x={2}, y={3}, z={4}, Yaw={5}, Pitch={6}]", static_cast<float>(fps), 
+			mergedModel.indexCount / 3, camera.Position.x, camera.Position.y, camera.Position.z, camera.Yaw, camera.Pitch);
 
 		glfwSetWindowTitle(window, temp.c_str());
 		frameTime = static_cast<float>(elapsedSeconds / frameCount);
@@ -2166,15 +2186,14 @@ void VulkanApplication::updateMaterialUniformBuffer(uint32_t frameIndex, uint32_
 void VulkanApplication::updateLightUniformBuffer(uint32_t frameIndex)
 {
 	LightUniformBufferObject ubo{};
-	ubo.lightPositions[0] = lightPositions[0];
-	ubo.lightPositions[1] = lightPositions[1];
-	ubo.lightPositions[2] = lightPositions[2];
-	ubo.lightPositions[3] = lightPositions[3];
 
-	ubo.lightColors[0] = lightColors[0];
-	ubo.lightColors[1] = lightColors[1];
-	ubo.lightColors[2] = lightColors[2];
-	ubo.lightColors[3] = lightColors[3];
+	ubo.turnOnLightCount = turnOnLightCount;
+
+	for (auto i = 0; i < LightCount; i++)
+	{
+		ubo.lightPositions[i] = lightPositions[i];
+		ubo.lightColors[i] = lightColors[i];
+	}
 
 	memcpy_s(lightUniformBuffersMapped[frameIndex], sizeof(LightUniformBufferObject), &ubo, sizeof(LightUniformBufferObject));
 }
@@ -2518,8 +2537,6 @@ bool VulkanApplication::isDeviceSuitable(VkPhysicalDevice inDevice)
 	deviceFeatures.pNext = &indexingFeatures;
 	vkGetPhysicalDeviceFeatures2(inDevice, &deviceFeatures);
 
-	auto result = deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && physicalDeviceFeatures.geometryShader;
-
 	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(inDevice);
 
 	bool extensionsSupported = checkDeviceExtensionSupport(inDevice);
@@ -2533,15 +2550,17 @@ bool VulkanApplication::isDeviceSuitable(VkPhysicalDevice inDevice)
 		swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 	}
 
-	return queueFamilyIndices.isComplete() && 
-					   extensionsSupported && 
-						 swapChainAdequate && 
-  physicalDeviceFeatures.samplerAnisotropy && 
-  physicalDeviceFeatures.shaderSampledImageArrayDynamicIndexing &&
-  indexingFeatures.descriptorBindingPartiallyBound && 
-  indexingFeatures.runtimeDescriptorArray &&
-  indexingFeatures.shaderSampledImageArrayNonUniformIndexing &&
-  indexingFeatures.descriptorBindingVariableDescriptorCount;
+	return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && 
+		   physicalDeviceFeatures.geometryShader &&
+		   queueFamilyIndices.isComplete() && 
+		   extensionsSupported &&  
+		   swapChainAdequate && 
+		   physicalDeviceFeatures.samplerAnisotropy && 
+		   physicalDeviceFeatures.shaderSampledImageArrayDynamicIndexing &&
+		   indexingFeatures.descriptorBindingPartiallyBound && 
+		   indexingFeatures.runtimeDescriptorArray &&
+		   indexingFeatures.shaderSampledImageArrayNonUniformIndexing &&
+		   indexingFeatures.descriptorBindingVariableDescriptorCount;
 }
 
 int32_t VulkanApplication::rateDeviceSuitability(VkPhysicalDevice inDevice)
@@ -2629,7 +2648,7 @@ VkSurfaceFormatKHR VulkanApplication::chooseSwapChainSurfaceFormat(const std::ve
 {
 	for (const auto& availableFormat : availableFormats)
 	{
-		if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		if (availableFormat.format == VK_FORMAT_R8G8B8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 		{
 			return availableFormat;
 		}

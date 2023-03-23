@@ -48,6 +48,7 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 
 		mi.materialName = mat.name;
 		mi.diffuseColor = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+		mi.roughness = mat.specular[0];
 
 		if (!mat.diffuse_texname.empty())
 			mi.diffuseTexturePath = prefix + mat.diffuse_texname;

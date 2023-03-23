@@ -45,13 +45,41 @@ const std::vector<uint32_t> quadIndices =
 	6, 7, 4
 };
 
-const glm::vec4 lightPositions[] = {
+constexpr uint32_t LightCount = 16;
+
+static uint32_t turnOnLightCount = LightCount;
+
+static glm::vec4 lightPositions[] = {
 	glm::vec4(-10.0f,  10.0f, 10.0f, 1.0f),
 	glm::vec4( 10.0f,  10.0f, 10.0f, 1.0f),
 	glm::vec4(-10.0f, -10.0f, 10.0f, 1.0f),
-	glm::vec4( 10.0f, -10.0f, 10.0f, 1.0f)
+	glm::vec4( 10.0f, -10.0f, 10.0f, 1.0f),
+	glm::vec4(-30.0f,  10.0f, 10.0f, 1.0f),
+	glm::vec4( 30.0f,  10.0f, 10.0f, 1.0f),
+	glm::vec4(-30.0f, -10.0f, 10.0f, 1.0f),
+	glm::vec4( 30.0f, -10.0f, 10.0f, 1.0f),
+	glm::vec4(-10.0f,  10.0f, 0.0f, 1.0f),
+	glm::vec4( 10.0f,  10.0f, 0.0f, 1.0f),
+	glm::vec4(-10.0f, -10.0f, 0.0f, 1.0f),
+	glm::vec4( 10.0f, -10.0f, 0.0f, 1.0f),
+	glm::vec4(-30.0f,  10.0f, 0.0f, 1.0f),
+	glm::vec4( 30.0f,  10.0f, 0.0f, 1.0f),
+	glm::vec4(-30.0f, -10.0f, 0.0f, 1.0f),
+	glm::vec4( 30.0f, -10.0f, 0.0f, 1.0f)
 };
 const glm::vec4 lightColors[] = {
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
+	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
 	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
 	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
 	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f),
@@ -72,7 +100,7 @@ struct ObjectUniformBufferObject
 
 struct MaterialUniformBufferObject
 {
-	glm::vec4 albedo = glm::vec4(1.0f);
+	glm::vec4 albedo = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
 	float metallic = 0.0f;
 	float roughness = 0.5f;
 	float ao = 1.0f;
@@ -82,8 +110,9 @@ struct MaterialUniformBufferObject
 
 struct LightUniformBufferObject
 {
-	glm::vec4 lightPositions[4];
-	glm::vec4 lightColors[4];
+	glm::vec4 lightPositions[LightCount];
+	glm::vec4 lightColors[LightCount];
+	uint32_t turnOnLightCount = 0;
 };
 
 enum class Channel : int32_t
@@ -139,7 +168,16 @@ std::string VkResultToString(VkResult result);
 // Our state
 static bool showDemoWindow = true;
 static bool showAnotherWindow = false;
-static ImVec4 clearColor = ImVec4(0.4f, 0.6f, 0.9f, 1.0f);
+static ImVec4 clearColor = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+
+static void checkVkResult(VkResult err)
+{
+	if (err == 0)
+		return;
+	fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
+	if (err < 0)
+		abort();
+}
 
 struct QueueFamilyIndices
 {
@@ -378,8 +416,9 @@ private:
 	int32_t frameCount;
 
 	Model model;
-	//Camera camera{ glm::vec3(8.0f, 15.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -180.0f };
-	Camera camera{ glm::vec3(0.0f, 0.0f, 24.0f) };
+	//Camera camera{ glm::vec3(0.0f, 20.0f, 14.0f) };
+	Camera camera{ glm::vec3(8.0f, 15.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -180.0f };
+	//Camera camera{ glm::vec3(0.0f, 0.0f, 24.0f) };
 
 	std::vector<std::unique_ptr<MeshGeometry>> meshGeometries;
 	std::vector<VkImageView> imageViews;
@@ -387,6 +426,7 @@ private:
 	SimpleModel sponza;
 	SimpleModel cube;
 	SimpleModel sphere;
+	SimpleModel marry;
 	SimpleModel mergedModel;
 	
 	std::vector<SimpleModel> models;
@@ -396,9 +436,6 @@ private:
 	uint32_t mipLevels = 1;
 
 	bool anisotropyEnable = true;
-
-	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
 
 	std::vector<std::string> textureImagePaths;
 };
