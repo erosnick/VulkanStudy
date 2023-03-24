@@ -240,6 +240,7 @@ private:
 	void createFramebuffers();
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
+	void createColorResources();
 	void createDepthResources();
 	VkImage createTextureImage(VkDeviceMemory& imageMemory, const std::string& path, Channel requireChannels = Channel::RGBAlpha);
 	VkImageView createTextureImageView(VkImage image);
@@ -268,7 +269,7 @@ private:
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
-	void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling,
+	void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory);
 
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
@@ -340,6 +341,8 @@ private:
 	bool checkValidationLayerSupport();
 	std::vector<const char*> getRequiredExtensions();
 
+	VkSampleCountFlagBits getMaxUsableSampleCount();
+
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -378,6 +381,9 @@ private:
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
 	VkBuffer vertexBuffer;
+	VkImage colorImage;
+	VkDeviceMemory colorImageMemory;
+	VkImageView colorImageView;
 	VkDeviceMemory vertexBufferMemory;
 	VkBuffer indexBuffer;
 	VkDeviceMemory indexBufferMemory;
@@ -436,6 +442,8 @@ private:
 	uint32_t mipLevels = 1;
 
 	bool anisotropyEnable = true;
+
+	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	std::vector<std::string> textureImagePaths;
 };
