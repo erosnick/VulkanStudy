@@ -82,6 +82,27 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CustomBuild Include="particle.comp">
+      <FileType>Document</FileType>
+      <Command>IF NOT EXIST "$(SolutionDir)\..\Assets\Shaders" (mkdir "$(SolutionDir)\..\Assets\Shaders")
+"$(SolutionDir)/../ThirdParty/shaderc/glslc.exe" -O  -o "$(SolutionDir)/../Assets/Shaders/%(Filename)%(Extension).spv" "%(Identity)"</Command>
+      <Outputs>particle.comp.spv</Outputs>
+      <Message>GLSLC: [COMP] '%(Filename)%(Extension)'</Message>
+    </CustomBuild>
+    <CustomBuild Include="particle.frag">
+      <FileType>Document</FileType>
+      <Command>IF NOT EXIST "$(SolutionDir)\..\Assets\Shaders" (mkdir "$(SolutionDir)\..\Assets\Shaders")
+"$(SolutionDir)/../ThirdParty/shaderc/glslc.exe" -O  -o "$(SolutionDir)/../Assets/Shaders/%(Filename)%(Extension).spv" "%(Identity)"</Command>
+      <Outputs>particle.frag.spv</Outputs>
+      <Message>GLSLC: [FRAG] '%(Filename)%(Extension)'</Message>
+    </CustomBuild>
+    <CustomBuild Include="particle.vert">
+      <FileType>Document</FileType>
+      <Command>IF NOT EXIST "$(SolutionDir)\..\Assets\Shaders" (mkdir "$(SolutionDir)\..\Assets\Shaders")
+"$(SolutionDir)/../ThirdParty/shaderc/glslc.exe" -O  -o "$(SolutionDir)/../Assets/Shaders/%(Filename)%(Extension).spv" "%(Identity)"</Command>
+      <Outputs>particle.vert.spv</Outputs>
+      <Message>GLSLC: [VERT] '%(Filename)%(Extension)'</Message>
+    </CustomBuild>
     <CustomBuild Include="shader.frag">
       <FileType>Document</FileType>
       <Command>IF NOT EXIST "$(SolutionDir)\..\Assets\Shaders" (mkdir "$(SolutionDir)\..\Assets\Shaders")

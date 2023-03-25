@@ -23,6 +23,7 @@
 #include "Model.h"
 #include "Camera.h"
 #include "SimpleModel.h"
+#include "DebugUtil.h"
 
 const std::vector<Vertex> quadVertices =
 {
@@ -86,6 +87,44 @@ const glm::vec4 lightColors[] = {
 	glm::vec4(300.0f, 300.0f, 300.0f, 1.0f)
 };
 
+constexpr uint32_t ParticleCount = 2048;
+
+static float particleSpeed = 5000.0f;
+
+struct Particle
+{
+	static VkVertexInputBindingDescription getBindingDescription() 
+	{
+		VkVertexInputBindingDescription bindingDescription{};
+		bindingDescription.binding = 0;
+		bindingDescription.stride = sizeof(Particle);
+		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return bindingDescription;
+	}
+
+	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() 
+	{
+		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+		attributeDescriptions[0].binding = 0;
+		attributeDescriptions[0].location = 0;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[0].offset = offsetof(Particle, position);
+
+		attributeDescriptions[1].binding = 0;
+		attributeDescriptions[1].location = 1;
+		attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		attributeDescriptions[1].offset = offsetof(Particle, color);
+
+		return attributeDescriptions;
+	}
+
+	glm::vec2 position;
+	glm::vec2 velocity;
+	glm::vec4 color;
+};
+
 struct GlobalUniformBufferObject
 {
 	glm::mat4 view;
@@ -113,6 +152,14 @@ struct LightUniformBufferObject
 	glm::vec4 lightPositions[LightCount];
 	glm::vec4 lightColors[LightCount];
 	uint32_t turnOnLightCount = 0;
+};
+
+struct ParticleUniformBufferObject
+{
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 projection;
+	float deltaTime;
 };
 
 enum class Channel : int32_t
@@ -143,7 +190,11 @@ static bool middleMouseButtonDown = false;
 static glm::vec2 lastMousePosition;
 
 const float FrameTime = 0.0166667f;
-static float frameTime = 0.0f;
+static float deltaTime = 0.0f;
+
+static float lastFrameTime = 0.0f;
+
+static double lastTime = 0.0;
 
 const int32_t numOfRows = 7;
 const int32_t numOfColumns = 7;
@@ -169,6 +220,7 @@ std::string VkResultToString(VkResult result);
 static bool showDemoWindow = true;
 static bool showAnotherWindow = false;
 static ImVec4 clearColor = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+//static ImVec4 clearColor = ImVec4(0.4f, 0.6f, 0.9f, 1.0f);
 
 static void checkVkResult(VkResult err)
 {
@@ -181,13 +233,13 @@ static void checkVkResult(VkResult err)
 
 struct QueueFamilyIndices
 {
-	std::optional<uint32_t> graphicsFamily = 0;
+	std::optional<uint32_t> graphicsAndComputeFamily = 0;
 	std::optional<uint32_t> presentFamily = 0;
 	std::optional<uint32_t> transferFamily = 0;
 
 	bool isComplete()
 	{
-		return graphicsFamily.has_value() && presentFamily.has_value() && transferFamily.has_value();
+		return graphicsAndComputeFamily.has_value() && presentFamily.has_value() && transferFamily.has_value();
 	}
 };
 
@@ -235,8 +287,10 @@ private:
 	void cleanupSwapChain();
 	void createImageViews();
 	void createRenderPass();
-	void createDescriptorSetLayout();
+	void createGraphicsDescriptorSetLayout();
+	void createComputeDescriptorSetLayout();
 	void createGraphicsPipeline();
+	void createComputePipeline();
 	void createFramebuffers();
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
@@ -255,14 +309,19 @@ private:
 	void createObjectUniformBuffers();
 	void createMaterialUniformBuffers();
 	void createLightUniformBuffers();
-	void createCommandBuffers();
+	void createShaderStorageBuffers();
+	void createParticleUniformBuffers();
+	void createGraphicsCommandBuffers();
+	void createComputeCommandBuffers();
 	void createDescriptorPool();
-	void createDescriptorSets();
+	void createGraphicsDescriptorSets();
+	void createComputeDescriptorSets();
 	void createSyncObjects();
 
 	SimpleModel mergeModels(const std::vector<SimpleModel>& models);
 
-	void recordCommandBuffer(VkCommandBuffer inCommandBuffer, uint32_t imageIndex);
+	void recordGraphicsCommandBuffer(VkCommandBuffer graphicsCommandBuffer, uint32_t imageIndex);
+	void recordComputeCommandBuffer(VkCommandBuffer computeCommandBuffer);
 
 	VkShaderModule createShaderModule(const std::vector<char>& shaderCode);
 
@@ -293,6 +352,7 @@ private:
 	void updateObjectUniformBuffer(uint32_t frameIndex, uint32_t index, const ObjectUniformBufferObject& objectUniformBufferObject);
 	void updateMaterialUniformBuffer(uint32_t frameIndex, uint32_t index, const MaterialUniformBufferObject& materialUniformBufferObject);
 	void updateLightUniformBuffer(uint32_t frameIndex);
+	void updateParticleUniformBuffer(uint32_t frameIndex);
 
 	void updateImageView(VkImageView imageView, VkImageView alphaImageView, uint32_t frameIndex);
 
@@ -331,6 +391,7 @@ private:
 	};
 
 	void mainLoop();
+	void update();
 	void drawFrame();
 	void cleanup();
 
@@ -362,14 +423,20 @@ private:
 	VkPhysicalDevice physicalDevice;
 	VkDevice device;
 	VkQueue graphicsQueue;
+	VkQueue computeQueue;
 	VkQueue presentQueue;
 	VkQueue transferQueue;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapChain;
 	VkRenderPass renderPass;
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkPipelineLayout pipelineLayout;
+	VkDescriptorSetLayout graphicsDescriptorSetLayout;
+	VkDescriptorSetLayout computeDescriptorSetLayout;
+	VkPipelineLayout graphicsPipelineLayout;
+	VkPipelineLayout particlePipelineLayout;
+	VkPipelineLayout computePipelineLayout;
 	VkPipeline graphicsPipeline;
+	VkPipeline particlePipeline;
+	VkPipeline computePipeline;
 	VkCommandPool graphicsCommandPool;
 	VkCommandPool transferCommandPool;
 	VkDescriptorPool descriptorPool;
@@ -387,7 +454,8 @@ private:
 	VkDeviceMemory vertexBufferMemory;
 	VkBuffer indexBuffer;
 	VkDeviceMemory indexBufferMemory;
-	std::vector<VkDescriptorSet> descriptorSets;
+	std::vector<VkDescriptorSet> graphicsDescriptorSets;
+	std::vector<VkDescriptorSet> computeDescriptorSets;
 	std::vector<VkBuffer> globalUniformBuffers;
 	std::vector<VkDeviceMemory> globalUniformBuffersMemory;
 	std::vector<void*> globalUniformBuffersMapped;
@@ -400,16 +468,24 @@ private:
 	std::vector<VkBuffer> lightUniformBuffers;
 	std::vector<VkDeviceMemory> lightUniformBuffersMemory;
 	std::vector<void*> lightUniformBuffersMapped;
-	std::vector<VkCommandBuffer> commandBuffers;
+	std::vector<VkBuffer> particleUniformBuffers;
+	std::vector<VkDeviceMemory> particleUniformBuffersMemory;
+	std::vector<void*> particleUniformBuffersMapped;
+	std::vector<VkCommandBuffer> graphicsCommandBuffers;
+	std::vector<VkCommandBuffer> computeCommandBuffers;
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
-	std::vector<VkFence> inFlightFences;
+	std::vector<VkSemaphore> computeFinishedSemaphores;
+	std::vector<VkFence> computeInFlightFences;
+	std::vector<VkFence> graphicsInFlightFences;
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImageView> swapChainImageViews;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
 	std::vector<VkImage> textureImages;
 	std::vector<VkDeviceMemory> textureImageMemories;
 	std::vector<VkImageView> textureImageViews;
+	std::vector<VkBuffer> shaderStorageBuffers;
+	std::vector<VkDeviceMemory> shaderStorageBuffersMemory;
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	VkDebugUtilsMessengerEXT debugMessenger;
@@ -425,6 +501,7 @@ private:
 	//Camera camera{ glm::vec3(0.0f, 20.0f, 14.0f) };
 	Camera camera{ glm::vec3(8.0f, 15.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -180.0f };
 	//Camera camera{ glm::vec3(0.0f, 0.0f, 24.0f) };
+	//Camera camera{ glm::vec3(0.0f, 0.0f, 5.0f) };
 
 	std::vector<std::unique_ptr<MeshGeometry>> meshGeometries;
 	std::vector<VkImageView> imageViews;
@@ -446,4 +523,6 @@ private:
 	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	std::vector<std::string> textureImagePaths;
+
+	DebugUtil debugUtil;
 };
