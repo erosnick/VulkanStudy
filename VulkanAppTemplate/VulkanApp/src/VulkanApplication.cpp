@@ -16,6 +16,8 @@
 
 #include "LoadModelObj.h"
 #include "GeometryGenerator.h"
+#include "labutils/error.hpp"
+#include "labutils/to_string.hpp"
 
 GeometryGenerator geometryGenerator;
 
@@ -298,9 +300,8 @@ void VulkanApplication::createInstance()
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pNext = nullptr;
 	appInfo.pApplicationName = "Vulkan Application";
-	appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 0);
 	appInfo.pEngineName = "Vulkan Engine";
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.engineVersion = VK_API_VERSION_1_3;
 	appInfo.apiVersion = VK_API_VERSION_1_3;
 
 	VkInstanceCreateInfo instanceCreateInfo{};
@@ -2289,6 +2290,56 @@ void VulkanApplication::copyBufferToImage(VkBuffer buffer, VkImage image, uint32
 	endSingleTimeCommands(oneTimeCommandBuffer);
 }
 
+void VulkanApplication::createVmaAllocator()
+{
+	VkPhysicalDeviceProperties props{};
+	vkGetPhysicalDeviceProperties(physicalDevice, &props);
+
+	VmaVulkanFunctions vulkanFunctions{};
+	vulkanFunctions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties; 
+	vulkanFunctions.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties; 
+	vulkanFunctions.vkAllocateMemory = vkAllocateMemory; 
+	vulkanFunctions.vkFreeMemory = vkFreeMemory; 
+	vulkanFunctions.vkMapMemory = vkMapMemory; 
+	vulkanFunctions.vkUnmapMemory = vkUnmapMemory; 
+	vulkanFunctions.vkFlushMappedMemoryRanges = vkFlushMappedMemoryRanges;
+	vulkanFunctions.vkInvalidateMappedMemoryRanges = vkInvalidateMappedMemoryRanges; 
+	vulkanFunctions.vkBindBufferMemory = vkBindBufferMemory;
+	vulkanFunctions.vkBindImageMemory = vkBindImageMemory; 
+	vulkanFunctions.vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements; 
+	vulkanFunctions.vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
+	vulkanFunctions.vkCreateBuffer = vkCreateBuffer;
+	vulkanFunctions.vkDestroyBuffer = vkDestroyBuffer; 
+	vulkanFunctions.vkGetDeviceBufferMemoryRequirements = vkGetDeviceBufferMemoryRequirements;
+	vulkanFunctions.vkGetDeviceImageMemoryRequirements = vkGetDeviceImageMemoryRequirements;
+	vulkanFunctions.vkCreateImage = vkCreateImage; 
+	vulkanFunctions.vkDestroyImage = vkDestroyImage; 
+	vulkanFunctions.vkCmdCopyBuffer = vkCmdCopyBuffer;
+	vulkanFunctions.vkGetBufferMemoryRequirements2KHR = vkGetBufferMemoryRequirements2KHR; 
+	vulkanFunctions.vkGetImageMemoryRequirements2KHR = vkGetImageMemoryRequirements2KHR; 
+	vulkanFunctions.vkBindBufferMemory2KHR = vkBindBufferMemory2KHR; 
+	vulkanFunctions.vkBindImageMemory2KHR = vkBindImageMemory2KHR; 
+	vulkanFunctions.vkGetPhysicalDeviceMemoryProperties2KHR = vkGetPhysicalDeviceMemoryProperties2KHR;
+
+	VmaAllocatorCreateInfo allocInfo{};
+	allocInfo.physicalDevice = physicalDevice;
+	allocInfo.device = device;
+	allocInfo.instance = instance;
+	allocInfo.pVulkanFunctions = &vulkanFunctions;
+	allocInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+
+	VmaAllocator allocator = VK_NULL_HANDLE;
+
+	//VkCheck(vmaCreateAllocator(&allocInfo, &allocator), "Unable to create allocator vmaCreateAllocator() returned %s");
+
+	if (auto const res = vmaCreateAllocator(&allocInfo, &allocator); VK_SUCCESS != res)
+	{
+		throw labutils::Error("Unable to create allocator\n"
+			"vmaCreateAllocator() returned %s", labutils::to_string(res).c_str()
+		);
+	}
+}
+
 VkCommandBuffer VulkanApplication::beginSingleTimeCommands()
 {
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
@@ -2721,6 +2772,7 @@ void VulkanApplication::initVulkan()
 	createSurface();
 	pickPhysicalDevice();
 	createLogicalDevice();
+	createVmaAllocator();
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
@@ -3570,6 +3622,30 @@ std::vector<const char*> VulkanApplication::getRequiredExtensions()
 	{
 		extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	}
+
+	// 创建VkInstance的时候要加入VK_KHR_get_physical_device_properties2扩展，这个扩展说明文档见：
+	// https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VK_KHR_get_physical_device_properties2.html
+	// 它引入了一些新函数：
+	//vkGetPhysicalDeviceFeatures2KHR
+	//vkGetPhysicalDeviceFormatProperties2KHR
+	//vkGetPhysicalDeviceImageFormatProperties2KHR
+	//vkGetPhysicalDeviceMemoryProperties2KHR
+	//vkGetPhysicalDeviceProperties2KHR
+	//vkGetPhysicalDeviceQueueFamilyProperties2KHR
+	//vkGetPhysicalDeviceSparseImageFormatProperties2KHR
+	// 这些函数对应volk.c中276~284行：
+	//#if defined(VK_KHR_get_physical_device_properties2)
+	//	vkGetPhysicalDeviceFeatures2KHR = (PFN_vkGetPhysicalDeviceFeatures2KHR)load(context, "vkGetPhysicalDeviceFeatures2KHR");
+	//	vkGetPhysicalDeviceFormatProperties2KHR = (PFN_vkGetPhysicalDeviceFormatProperties2KHR)load(context, "vkGetPhysicalDeviceFormatProperties2KHR");
+	//	vkGetPhysicalDeviceImageFormatProperties2KHR = (PFN_vkGetPhysicalDeviceImageFormatProperties2KHR)load(context, "vkGetPhysicalDeviceImageFormatProperties2KHR");
+	//	vkGetPhysicalDeviceMemoryProperties2KHR = (PFN_vkGetPhysicalDeviceMemoryProperties2KHR)load(context, "vkGetPhysicalDeviceMemoryProperties2KHR");
+	//	vkGetPhysicalDeviceProperties2KHR = (PFN_vkGetPhysicalDeviceProperties2KHR)load(context, "vkGetPhysicalDeviceProperties2KHR");
+	//	vkGetPhysicalDeviceQueueFamilyProperties2KHR = (PFN_vkGetPhysicalDeviceQueueFamilyProperties2KHR)load(context, "vkGetPhysicalDeviceQueueFamilyProperties2KHR");
+	//	vkGetPhysicalDeviceSparseImageFormatProperties2KHR = (PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR)load(context, "vkGetPhysicalDeviceSparseImageFormatProperties2KHR");
+	//#endif /* defined(VK_KHR_get_physical_device_properties2) */
+	// 需要这个扩展的原因是初始化VMA(Vulkan Memory Allocator)时需要给VmaVulkanFunctions指定相关的
+	// 几个函数，如果没有这个扩展，则这几个函数的指针为nullptr，调用vmaCreateAllocator就会崩溃
+	extensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
 	return extensions;
 }

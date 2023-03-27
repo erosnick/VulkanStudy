@@ -25,6 +25,8 @@
 #include "SimpleModel.h"
 #include "DebugUtil.h"
 
+#include <vk_mem_alloc.h>
+
 const std::vector<Vertex> quadVertices =
 {
 	{ { -0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
@@ -337,6 +339,8 @@ private:
 
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 
+	void createVmaAllocator();
+
 	VkCommandBuffer beginSingleTimeCommands();
 
 	void endSingleTimeCommands(VkCommandBuffer inCommandBuffer);
@@ -525,4 +529,6 @@ private:
 	std::vector<std::string> textureImagePaths;
 
 	DebugUtil debugUtil;
+
+	VmaAllocator vmaAllocator;
 };
