@@ -27,6 +27,8 @@
 
 #include <vk_mem_alloc.h>
 
+#include "Resources.h"
+
 const std::vector<Vertex> quadVertices =
 {
 	{ { -0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
@@ -178,7 +180,7 @@ const uint32_t WindowWidth = 1600;
 const uint32_t WindowHeight = 900;
 
 const std::vector<const char*> ValidationLayers = { "VK_LAYER_KHRONOS_validation" };
-const std::vector<const char*> DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MAINTENANCE_4_EXTENSION_NAME };
+const std::vector<const char*> DeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_MAINTENANCE_4_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME, VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME };
 
 const std::string ResourceBase = "../Assets/";
 
@@ -203,6 +205,8 @@ const int32_t numOfColumns = 7;
 const float spacing = 2.5f;
 
 const int32_t TextureUnits = 64;
+
+static bool useVma = false;
 
 #ifdef NDEBUG
 const bool EnableValidationLayers = false;
@@ -254,10 +258,8 @@ struct SwapChainSupportDetails
 
 struct MeshGeometry
 {
-	VkBuffer vertexBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
-	VkBuffer indexBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
+	Buffer vertexBuffer;
+	Buffer indexBuffer;
 	uint32_t textureImageViewIndex = 0;
 	uint32_t vertexCount = 0;
 	uint32_t indexCount = 0;
@@ -301,8 +303,10 @@ private:
 	VkImage createTextureImage(VkDeviceMemory& imageMemory, const std::string& path, Channel requireChannels = Channel::RGBAlpha);
 	VkImageView createTextureImageView(VkImage image);
 	void createTextureSampler();
-	VkBuffer createVertexBuffer(const std::vector<Vertex>& vertices, VkDeviceMemory& vertexBufferMemory);
-	VkBuffer createIndexBuffer(const std::vector<uint32_t>& indices, VkDeviceMemory& indexBufferMemory);
+	Buffer createVertexBuffer(const std::vector<Vertex>& vertices);
+	Buffer createVertexBufferVma(const std::vector<Vertex>& vertices);
+	Buffer createIndexBuffer(const std::vector<uint32_t>& indices);
+	Buffer createIndexBufferVma(const std::vector<uint32_t>& indices);
 	std::unique_ptr<MeshGeometry> createMeshGeometry(const Mesh& mesh);
 	std::unique_ptr<MeshGeometry> createMeshGeometry(const SimpleMeshInfo& mesh, const SimpleMaterialInfo& material);
 	void createMeshGeometries(const Model& model);
@@ -328,7 +332,9 @@ private:
 	VkShaderModule createShaderModule(const std::vector<char>& shaderCode);
 
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+	void createBufferVma(Buffer& buffer);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+	void destroyBuffer(Buffer& buffer, bool mapped = false);
 
 	void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory);
@@ -451,13 +457,11 @@ private:
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
-	VkBuffer vertexBuffer;
+	Buffer vertexBuffer;
 	VkImage colorImage;
 	VkDeviceMemory colorImageMemory;
 	VkImageView colorImageView;
-	VkDeviceMemory vertexBufferMemory;
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexBufferMemory;
+	Buffer indexBuffer;
 	std::vector<VkDescriptorSet> graphicsDescriptorSets;
 	std::vector<VkDescriptorSet> computeDescriptorSets;
 	std::vector<VkBuffer> globalUniformBuffers;

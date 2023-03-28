@@ -230,10 +230,6 @@ VulkanApplication::VulkanApplication()
   colorImage(VK_NULL_HANDLE),
   colorImageMemory(VK_NULL_HANDLE),
   colorImageView(VK_NULL_HANDLE),
-  vertexBuffer(VK_NULL_HANDLE),
-  vertexBufferMemory(VK_NULL_HANDLE),
-  indexBuffer(VK_NULL_HANDLE),
-  indexBufferMemory(VK_NULL_HANDLE),
   depthImage(VK_NULL_HANDLE),
   depthImageMemory(VK_NULL_HANDLE),
   depthImageView(VK_NULL_HANDLE),
@@ -1275,62 +1271,115 @@ void VulkanApplication::createTextureSampler()
 	VkCheck(vkCreateSampler(device, &samplerCreateInfo, allocator, &textureSampler), "Failed to create texture sampler!");
 }
 
-VkBuffer VulkanApplication::createVertexBuffer(const std::vector<Vertex>& vertices, VkDeviceMemory& vertexBufferMemory)
+Buffer VulkanApplication::createVertexBuffer(const std::vector<Vertex>& vertices)
 {
 	VkDeviceSize bufferSize = VectorSize(Vertex, vertices);
 
-	VkBuffer vertexBuffer;
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
+	Buffer vertexBuffer;
+	Buffer stagingBuffer;
 
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-				 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | 
-							 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-							 stagingBuffer, stagingBufferMemory);
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer.handle, stagingBuffer.memory);
 
 	void* data = nullptr;
-	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-
+	vkMapMemory(device, stagingBuffer.memory, 0, bufferSize, 0, &data);
 	memcpy_s(data, bufferSize, vertices.data(), bufferSize);
-
-	vkUnmapMemory(device, stagingBufferMemory);
+	vkUnmapMemory(device, stagingBuffer.memory);
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-				 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-					      vertexBuffer, vertexBufferMemory);
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		vertexBuffer.handle, vertexBuffer.memory);
 
-	copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+	copyBuffer(stagingBuffer.handle, vertexBuffer.handle, bufferSize);
 
-	vkDestroyBuffer(device, stagingBuffer, allocator);
-	vkFreeMemory(device, stagingBufferMemory, allocator);
+	vkDestroyBuffer(device, stagingBuffer.handle, allocator);
+	vkFreeMemory(device, stagingBuffer.memory, allocator);
 
 	return vertexBuffer;
 }
 
-VkBuffer VulkanApplication::createIndexBuffer(const std::vector<uint32_t>& indices, VkDeviceMemory& indexBufferMemory)
+Buffer VulkanApplication::createVertexBufferVma(const std::vector<Vertex>& vertices)
+{
+	VkDeviceSize bufferSize = VectorSize(Vertex, vertices);
+
+	Buffer stagingBuffer;
+	stagingBuffer.size = bufferSize;
+	stagingBuffer.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	stagingBuffer.propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+	createBufferVma(stagingBuffer);
+
+	void* mappedData = nullptr;
+
+	vmaMapMemory(vmaAllocator, stagingBuffer.allocation, &mappedData);
+	memcpy_s(mappedData, bufferSize, vertices.data(), bufferSize);
+	vmaUnmapMemory(vmaAllocator, stagingBuffer.allocation);
+
+	Buffer vertexBuffer;
+	vertexBuffer.size = bufferSize;
+	vertexBuffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	vertexBuffer.propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+	createBufferVma(vertexBuffer);
+
+	copyBuffer(stagingBuffer.handle, vertexBuffer.handle, bufferSize);
+
+	return vertexBuffer;
+}
+
+Buffer VulkanApplication::createIndexBuffer(const std::vector<uint32_t>& indices)
 {
 	VkDeviceSize bufferSize = VectorSize(uint32_t, indices);
 
-	VkBuffer indexBuffer;
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
+	Buffer indexBuffer;
+	Buffer stagingBuffer;
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-						  stagingBuffer, stagingBufferMemory);
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer.handle, stagingBuffer.memory);
 
 	void* data = nullptr;
-	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	vkMapMemory(device, stagingBuffer.memory, 0, bufferSize, 0, &data);
 	memcpy_s(data, bufferSize, indices.data(), bufferSize);
-	vkUnmapMemory(device, stagingBufferMemory);
+	vkUnmapMemory(device, stagingBuffer.memory);
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-				 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer.handle, indexBuffer.memory);
 
-	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-	
-	vkDestroyBuffer(device, stagingBuffer, allocator);
-	vkFreeMemory(device, stagingBufferMemory, allocator);
+	copyBuffer(stagingBuffer.handle, indexBuffer.handle, bufferSize);
+
+	vkDestroyBuffer(device, stagingBuffer.handle, allocator);
+	vkFreeMemory(device, stagingBuffer.memory, allocator);
+
+	return indexBuffer;
+}
+
+Buffer VulkanApplication::createIndexBufferVma(const std::vector<uint32_t>& indices)
+{
+	VkDeviceSize bufferSize = VectorSize(uint32_t, indices);
+
+	Buffer stagingBuffer;
+	stagingBuffer.size = bufferSize;
+	stagingBuffer.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	stagingBuffer.propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+	createBufferVma(stagingBuffer);
+
+	void* mappedData = nullptr;
+
+	vmaMapMemory(vmaAllocator, stagingBuffer.allocation, &mappedData);
+	memcpy_s(mappedData, bufferSize, indices.data(), bufferSize);
+	vmaUnmapMemory(vmaAllocator, stagingBuffer.allocation);
+
+	Buffer indexBuffer;
+	indexBuffer.size = bufferSize;
+	indexBuffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+	indexBuffer.propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+	createBufferVma(indexBuffer);
+
+	copyBuffer(stagingBuffer.handle, indexBuffer.handle, bufferSize);
 
 	return indexBuffer;
 }
@@ -1338,9 +1387,17 @@ VkBuffer VulkanApplication::createIndexBuffer(const std::vector<uint32_t>& indic
 std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const Mesh& mesh)
 {
 	auto meshGeometry = std::make_unique<MeshGeometry>();
-
-	meshGeometry->vertexBuffer = createVertexBuffer(mesh.getVertices(), meshGeometry->vertexBufferMemory);
-	meshGeometry->indexBuffer = createIndexBuffer(mesh.getIndices(), meshGeometry->indexBufferMemory);
+	
+	if (useVma)
+	{
+		meshGeometry->vertexBuffer = createVertexBufferVma(mesh.getVertices());
+		meshGeometry->indexBuffer = createIndexBufferVma(mesh.getIndices());
+	}
+	else
+	{
+		meshGeometry->vertexBuffer = createVertexBuffer(mesh.getVertices());
+		meshGeometry->indexBuffer = createIndexBuffer(mesh.getIndices());
+	}
 	meshGeometry->vertexCount = static_cast<uint32_t>(mesh.getVertices().size());
 	meshGeometry->indexCount = static_cast<uint32_t>(mesh.getIndices().size());
 	meshGeometry->material = mesh.getMaterial();
@@ -1365,8 +1422,16 @@ std::unique_ptr<MeshGeometry> VulkanApplication::createMeshGeometry(const Simple
 
 	auto textured = mesh.textured;
 
-	meshGeometry->vertexBuffer = createVertexBuffer(mesh.vertices, meshGeometry->vertexBufferMemory);
-	meshGeometry->indexBuffer = createIndexBuffer(mesh.indices, meshGeometry->indexBufferMemory);
+	if (useVma)
+	{
+		meshGeometry->vertexBuffer = createVertexBufferVma(mesh.vertices);
+		meshGeometry->indexBuffer = createIndexBufferVma(mesh.indices);
+	}
+	else
+	{
+		meshGeometry->vertexBuffer = createVertexBuffer(mesh.vertices);
+		meshGeometry->indexBuffer = createIndexBuffer(mesh.indices);
+	}
 	meshGeometry->vertexCount = static_cast<uint32_t>(mesh.vertices.size());
 	meshGeometry->indexStartIndex = static_cast<uint32_t>(mesh.indexStartIndex);
 	meshGeometry->indexCount = static_cast<uint32_t>(mesh.indices.size());
@@ -1960,13 +2025,13 @@ void VulkanApplication::recordGraphicsCommandBuffer(VkCommandBuffer graphicsComm
 	vkCmdSetScissor(graphicsCommandBuffer, 0, 1, &scissor);
 
 	// 这里vertexBUffer是全局的顶点缓冲(整个.obj模型的所有submesh数据都存在它里面)
-	VkBuffer vertexBuffers[]{ vertexBuffer };
+	VkBuffer vertexBuffers[]{ vertexBuffer.handle };
 	VkDeviceSize offsets[]{ 0 };
 	vkCmdBindVertexBuffers(graphicsCommandBuffer, 0, 1, vertexBuffers, offsets);
 
 	// 这里的indexBUffer同样是全局的索引缓冲
 	// 绘制时通过vkCmdDrawIndexd第三个参数indexCount配合第四个参数firstIndex来进行索引
-	vkCmdBindIndexBuffer(graphicsCommandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindIndexBuffer(graphicsCommandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 
 	for (auto i = 0; i < meshGeometries.size(); i++)
 	{
@@ -1974,7 +2039,7 @@ void VulkanApplication::recordGraphicsCommandBuffer(VkCommandBuffer graphicsComm
 
 		//VkBuffer vertexBuffers[]{ meshGeometry->vertexBuffer };
 
-		if (meshGeometry->indexBuffer != nullptr)
+		if (meshGeometry->indexBuffer.handle != nullptr)
 		{
 			//vkCmdBindIndexBuffer(inCommandBuffer, meshGeometry->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 		}
@@ -2110,12 +2175,26 @@ void VulkanApplication::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage
 	VkMemoryAllocateInfo allocateInfo{};
 	allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocateInfo.allocationSize = memoryRequirements.size;
-	allocateInfo.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	allocateInfo.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits, propertyFlags);
 
 	VkCheck(vkAllocateMemory(device, &allocateInfo, allocator, &bufferMemory), "Failed to allocate vertex buffer memory!");
 
 	vkBindBufferMemory(device, buffer, bufferMemory, 0);
+}
+
+void VulkanApplication::createBufferVma(Buffer& buffer)
+{
+	VmaAllocationCreateInfo allocationCreateInfo{};
+	allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	allocationCreateInfo.preferredFlags = buffer.propertyFlags;
+	allocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	VkBufferCreateInfo bufferCreateInfo{};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = buffer.size;
+	bufferCreateInfo.usage = buffer.usage;
+
+	vmaCreateBuffer(vmaAllocator, &bufferCreateInfo, &allocationCreateInfo, &buffer.handle, &buffer.allocation, nullptr);
 }
 
 void VulkanApplication::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
@@ -2130,6 +2209,23 @@ void VulkanApplication::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDev
 	vkCmdCopyBuffer(oneTimeCommandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
 	endSingleTimeCommands(oneTimeCommandBuffer);
+}
+
+void VulkanApplication::destroyBuffer(Buffer& buffer, bool mapped)
+{
+	if (useVma)
+	{
+		vmaDestroyBuffer(buffer.allocator, buffer.handle, buffer.allocation);
+	}
+	else
+	{
+		vkDestroyBuffer(device, buffer.handle, allocator);
+		if (mapped)
+		{
+			vkUnmapMemory(device, buffer.memory);
+		}
+		vkFreeMemory(device, buffer.memory, allocator);
+	}
 }
 
 void VulkanApplication::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory)
@@ -2296,6 +2392,8 @@ void VulkanApplication::createVmaAllocator()
 	vkGetPhysicalDeviceProperties(physicalDevice, &props);
 
 	VmaVulkanFunctions vulkanFunctions{};
+	vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+	vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
 	vulkanFunctions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties; 
 	vulkanFunctions.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties; 
 	vulkanFunctions.vkAllocateMemory = vkAllocateMemory; 
@@ -2332,7 +2430,7 @@ void VulkanApplication::createVmaAllocator()
 
 	//VkCheck(vmaCreateAllocator(&allocInfo, &allocator), "Unable to create allocator vmaCreateAllocator() returned %s");
 
-	if (auto const res = vmaCreateAllocator(&allocInfo, &allocator); VK_SUCCESS != res)
+	if (auto const res = vmaCreateAllocator(&allocInfo, &vmaAllocator); VK_SUCCESS != res)
 	{
 		throw labutils::Error("Unable to create allocator\n"
 			"vmaCreateAllocator() returned %s", labutils::to_string(res).c_str()
@@ -2772,7 +2870,11 @@ void VulkanApplication::initVulkan()
 	createSurface();
 	pickPhysicalDevice();
 	createLogicalDevice();
-	createVmaAllocator();
+	if (useVma)
+	{
+		createVmaAllocator();
+		Buffer::allocator = vmaAllocator;
+	}
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
@@ -2797,11 +2899,19 @@ void VulkanApplication::initVulkan()
 	createMeshGeometries(mergedModel);
 	//createMeshGeometries(sphere);
 
-	vertexBuffer = createVertexBuffer(mergedModel.vertices, vertexBufferMemory);
-	indexBuffer = createIndexBuffer(mergedModel.indices, indexBufferMemory);
+	if (useVma)
+	{
+		vertexBuffer = createVertexBufferVma(mergedModel.vertices);
+		indexBuffer = createIndexBufferVma(mergedModel.indices);
+	}
+	else
+	{
+		vertexBuffer = createVertexBuffer(mergedModel.vertices);
+		indexBuffer = createIndexBuffer(mergedModel.indices);
+	}
 
-	debugUtil.setObjectName(vertexBuffer, "vertexBuffer");
-	debugUtil.setObjectName(indexBuffer, "vertexBuffer");
+	debugUtil.setObjectName(vertexBuffer.handle, "vertexBuffer");
+	debugUtil.setObjectName(indexBuffer.handle, "vertexBuffer");
 
 	createGlobalUniformBuffers();
 	createObjectUniformBuffers();
@@ -3350,11 +3460,9 @@ void VulkanApplication::cleanup()
 	vkDestroyImage(device, textureImage, allocator);
 	vkFreeMemory(device, textureImageMemory, allocator);
 
-	vkDestroyBuffer(device, vertexBuffer, allocator);
-	vkFreeMemory(device, vertexBufferMemory, allocator);
+	destroyBuffer(vertexBuffer);
 
-	vkDestroyBuffer(device, indexBuffer, allocator);
-	vkFreeMemory(device, indexBufferMemory, allocator);
+	destroyBuffer(indexBuffer);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -3408,13 +3516,8 @@ void VulkanApplication::cleanup()
 	{
 		const auto& meshGeometry = meshGeometries[i];
 
-		vkDestroyBuffer(device, meshGeometry->indexBuffer, allocator);
-
-		vkFreeMemory(device, meshGeometry->indexBufferMemory, allocator);
-
-		vkDestroyBuffer(device, meshGeometry->vertexBuffer, allocator);
-
-		vkFreeMemory(device, meshGeometry->vertexBufferMemory, allocator);
+		destroyBuffer(meshGeometry->vertexBuffer);
+		destroyBuffer(meshGeometry->indexBuffer);
 	}
 
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
@@ -3444,6 +3547,11 @@ void VulkanApplication::cleanup()
 	vkDestroyPipelineLayout(device, graphicsPipelineLayout, allocator);
 
 	vkDestroyRenderPass(device, renderPass, allocator);
+
+	if (useVma)
+	{
+		vmaDestroyAllocator(vmaAllocator);
+	}
 
 	vkDestroyDevice(device, allocator);
 

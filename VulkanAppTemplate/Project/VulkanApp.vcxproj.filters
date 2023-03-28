@@ -24,6 +24,9 @@
     <ClInclude Include="..\VulkanApp\src\Model.h">
       <Filter>Headers</Filter>
     </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\Resources.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
     <ClInclude Include="..\VulkanApp\src\SimpleModel.h">
       <Filter>Headers</Filter>
     </ClInclude>
@@ -57,6 +60,9 @@
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\Model.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\Resources.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\VulkanApplication.cpp">

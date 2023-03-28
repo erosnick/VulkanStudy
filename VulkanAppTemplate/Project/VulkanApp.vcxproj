@@ -191,6 +191,7 @@
     <ClInclude Include="..\VulkanApp\src\GeometryGenerator.h" />
     <ClInclude Include="..\VulkanApp\src\LoadModelObj.h" />
     <ClInclude Include="..\VulkanApp\src\Model.h" />
+    <ClInclude Include="..\VulkanApp\src\Resources.h" />
     <ClInclude Include="..\VulkanApp\src\SimpleModel.h" />
     <ClInclude Include="..\VulkanApp\src\Vertex.h" />
     <ClInclude Include="..\VulkanApp\src\VulkanApplication.h" />
@@ -204,6 +205,7 @@
     <ClCompile Include="..\VulkanApp\src\ImGui\ImGuiBuild.cpp" />
     <ClCompile Include="..\VulkanApp\src\LoadModelObj.cpp" />
     <ClCompile Include="..\VulkanApp\src\Model.cpp" />
+    <ClCompile Include="..\VulkanApp\src\Resources.cpp" />
     <ClCompile Include="..\VulkanApp\src\VulkanApplication.cpp" />
     <ClCompile Include="..\VulkanApp\src\labutils\allocator.cpp" />
     <ClCompile Include="..\VulkanApp\src\labutils\context_helpers.cpp" />
