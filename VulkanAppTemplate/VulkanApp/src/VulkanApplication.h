@@ -206,7 +206,7 @@ const float spacing = 2.5f;
 
 const int32_t TextureUnits = 64;
 
-static bool useVma = false;
+static bool useVma = true;
 
 #ifdef NDEBUG
 const bool EnableValidationLayers = false;
@@ -300,7 +300,8 @@ private:
 	void createTransferCommandPool();
 	void createColorResources();
 	void createDepthResources();
-	VkImage createTextureImage(VkDeviceMemory& imageMemory, const std::string& path, Channel requireChannels = Channel::RGBAlpha);
+	Image createTextureImage(const std::string& path, Channel requireChannels = Channel::RGBAlpha);
+	Image createTextureImageVma(const std::string& path, Channel requireChannels = Channel::RGBAlpha);
 	VkImageView createTextureImageView(VkImage image);
 	void createTextureSampler();
 	Buffer createVertexBuffer(const std::vector<Vertex>& vertices);
@@ -311,12 +312,51 @@ private:
 	std::unique_ptr<MeshGeometry> createMeshGeometry(const SimpleMeshInfo& mesh, const SimpleMaterialInfo& material);
 	void createMeshGeometries(const Model& model);
 	void createMeshGeometries(const SimpleModel& model);
+
+	template<class BufferType>
+	void createUniformBuffers(BufferType type, VkDeviceSize size, std::vector<Buffer> uniformBuffers)
+	{
+		uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			createBuffer(size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				uniformBuffers[i].handle, uniformBuffers[i].memory);
+
+			vkMapMemory(device, uniformBuffers[i].memory, 0, bufferSize, 0, &uniformBuffers[i].mappedData);
+		}
+	}
+
+	template<class BufferType>
+	void createUniformBuffersVma(BufferType type, VkDeviceSize size, std::vector<Buffer> uniformBuffers)
+	{
+		uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			uniformBuffers[i].size = bufferSize;
+			uniformBuffers[i].usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+			uniformBuffers[i].memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+			createBufferVma(uniformBuffers[i]);
+
+			vmaMapMemory(uniformBuffers[i].allocator, uniformBuffers[i].allocation, &uniformBuffers[i].mappedData);
+		}
+	}
+
 	void createGlobalUniformBuffers();
+	void createGlobalUniformBuffersVma();
 	void createObjectUniformBuffers();
+	void createObjectUniformBuffersVma();
 	void createMaterialUniformBuffers();
+	void createMaterialUniformBuffersVma();
 	void createLightUniformBuffers();
+	void createLightUniformBuffersVma();
 	void createShaderStorageBuffers();
+	void createShaderStorageBuffersVma();
 	void createParticleUniformBuffers();
+	void createParticleUniformBuffersVma();
 	void createGraphicsCommandBuffers();
 	void createComputeCommandBuffers();
 	void createDescriptorPool();
@@ -331,15 +371,22 @@ private:
 
 	VkShaderModule createShaderModule(const std::vector<char>& shaderCode);
 
-	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+	void createBuffer(Buffer& buffer);
+
 	void createBufferVma(Buffer& buffer);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	void destroyBuffer(Buffer& buffer, bool mapped = false);
+	void destroyImage(Image& image);
 
 	void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
-		VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory);
+		 VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory);
+
+	void createImage(Image& image);
+	void createImageVma(Image& image);
 
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
+	VkImageView createImageView(Image image, VkImageAspectFlags aspectFlags);
 
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
 
@@ -450,35 +497,19 @@ private:
 	VkCommandPool graphicsCommandPool;
 	VkCommandPool transferCommandPool;
 	VkDescriptorPool descriptorPool;
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-	VkImageView textureImageView;
+	Image textureImage;
 	VkSampler textureSampler;
-	VkImage depthImage;
-	VkDeviceMemory depthImageMemory;
-	VkImageView depthImageView;
+	Image depthImage;
+	Image colorImage;
 	Buffer vertexBuffer;
-	VkImage colorImage;
-	VkDeviceMemory colorImageMemory;
-	VkImageView colorImageView;
 	Buffer indexBuffer;
 	std::vector<VkDescriptorSet> graphicsDescriptorSets;
 	std::vector<VkDescriptorSet> computeDescriptorSets;
-	std::vector<VkBuffer> globalUniformBuffers;
-	std::vector<VkDeviceMemory> globalUniformBuffersMemory;
-	std::vector<void*> globalUniformBuffersMapped;
-	std::vector<VkBuffer> objectUniformBuffers;
-	std::vector<VkDeviceMemory> objectUniformBuffersMemory;
-	std::vector<void*> objectUniformBuffersMapped;
-	std::vector<VkBuffer> materialUniformBuffers;
-	std::vector<VkDeviceMemory> materialUniformBuffersMemory;
-	std::vector<void*> materialUniformBuffersMapped;
-	std::vector<VkBuffer> lightUniformBuffers;
-	std::vector<VkDeviceMemory> lightUniformBuffersMemory;
-	std::vector<void*> lightUniformBuffersMapped;
-	std::vector<VkBuffer> particleUniformBuffers;
-	std::vector<VkDeviceMemory> particleUniformBuffersMemory;
-	std::vector<void*> particleUniformBuffersMapped;
+	std::vector<Buffer> globalUniformBuffers;
+	std::vector<Buffer> objectUniformBuffers;
+	std::vector<Buffer> materialUniformBuffers;
+	std::vector<Buffer> lightUniformBuffers;
+	std::vector<Buffer> particleUniformBuffers;
 	std::vector<VkCommandBuffer> graphicsCommandBuffers;
 	std::vector<VkCommandBuffer> computeCommandBuffers;
 	std::vector<VkSemaphore> imageAvailableSemaphores;
@@ -489,11 +520,8 @@ private:
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImageView> swapChainImageViews;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
-	std::vector<VkImage> textureImages;
-	std::vector<VkDeviceMemory> textureImageMemories;
-	std::vector<VkImageView> textureImageViews;
-	std::vector<VkBuffer> shaderStorageBuffers;
-	std::vector<VkDeviceMemory> shaderStorageBuffersMemory;
+	std::vector<Image> textureImages;
+	std::vector<Buffer> shaderStorageBuffers;
 	VkFormat swapChainImageFormat;
 	VkExtent2D swapChainExtent;
 	VkDebugUtilsMessengerEXT debugMessenger;
