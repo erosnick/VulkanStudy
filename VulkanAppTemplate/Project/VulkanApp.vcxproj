@@ -98,7 +98,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>DEBUG;FMT_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\ThirdParty\stb;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThirdParty\stb;..\ThirdParty\etc2comp;..\ThirdParty\etc2comp\EtcLib\Etc;..\ThirdParty\etc2comp\EtcLib\EtcCodec;D:\Development\VulkanSDK\1.3.243.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\Optick_1.4.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;..\ThirdParty\easy_profiler-v2.1.0-msvc15-win64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -107,8 +107,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glfw3.lib;D:\Development\VulkanSDK\1.3.239.0\Lib\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\ThirdParty\glfw-3.3.8.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;EtcLibd.lib;OptickCore.lib;D:\Development\VulkanSDK\1.3.243.0\Lib\vulkan-1.lib;easy_profiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\ThirdParty\etc2comp\Lib;..\ThirdParty\Optick_1.4.0\lib\x64\debug;..\ThirdParty\glfw-3.3.8.bin.WIN64\lib-vc2022;..\ThirdParty\easy_profiler-v2.1.0-msvc15-win64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <Manifest>
       <EnableDpiAwareness>true</EnableDpiAwareness>
@@ -119,7 +119,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>DEBUG;FMT_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\ThirdParty\stb;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThirdParty\stb;..\ThirdParty\etc2comp;..\ThirdParty\etc2comp\EtcLib\Etc;..\ThirdParty\etc2comp\EtcLib\EtcCodec;D:\Development\VulkanSDK\1.3.243.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\Optick_1.4.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;..\ThirdParty\easy_profiler-v2.1.0-msvc15-win64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -128,8 +128,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glfw3.lib;D:\Development\VulkanSDK\1.3.239.0\Lib\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\ThirdParty\glfw-3.3.8.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;EtcLibd.lib;OptickCore.lib;D:\Development\VulkanSDK\1.3.243.0\Lib\vulkan-1.lib;easy_profiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\ThirdParty\etc2comp\Lib;..\ThirdParty\Optick_1.4.0\lib\x64\debug;..\ThirdParty\glfw-3.3.8.bin.WIN64\lib-vc2022;..\ThirdParty\easy_profiler-v2.1.0-msvc15-win64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <Manifest>
       <EnableDpiAwareness>true</EnableDpiAwareness>
@@ -140,7 +140,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>NDEBUG;FMT_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\ThirdParty\stb;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThirdParty\stb;..\ThirdParty\etc2comp;..\ThirdParty\etc2comp\EtcLib\Etc;..\ThirdParty\etc2comp\EtcLib\EtcCodec;D:\Development\VulkanSDK\1.3.243.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\Optick_1.4.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;..\ThirdParty\easy_profiler-v2.1.0-msvc15-win64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -153,8 +153,8 @@
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>glfw3.lib;D:\Development\VulkanSDK\1.3.239.0\Lib\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\ThirdParty\glfw-3.3.8.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;EtcLib.lib;OptickCore.lib;D:\Development\VulkanSDK\1.3.243.0\Lib\vulkan-1.lib;easy_profiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\ThirdParty\etc2comp\Lib;..\ThirdParty\Optick_1.4.0\lib\x64\release;..\ThirdParty\glfw-3.3.8.bin.WIN64\lib-vc2022;..\ThirdParty\easy_profiler-v2.1.0-msvc15-win64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <Manifest>
       <EnableDpiAwareness>true</EnableDpiAwareness>
@@ -165,7 +165,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>NDEBUG;FMT_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\ThirdParty\stb;D:\Development\VulkanSDK\1.3.239.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThirdParty\stb;..\ThirdParty\etc2comp;..\ThirdParty\etc2comp\EtcLib\Etc;..\ThirdParty\etc2comp\EtcLib\EtcCodec;D:\Development\VulkanSDK\1.3.243.0\Include;..\ThirdParty\volk\include;..\ThirdParty\imgui-1.89.2;..\ThirdParty\tinyobjloader;..\ThirdParty\glm-0.9.9.8\glm;..\ThirdParty\fmt-9.1.0\include;..\ThirdParty\Optick_1.4.0\include;..\ThirdParty\rapidobj-1.0.1\include;..\ThirdParty\glfw-3.3.8.bin.WIN64\include;..\ThirdParty\VulkanMemoryAllocator\include;..\ThirdParty\easy_profiler-v2.1.0-msvc15-win64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -178,8 +178,8 @@
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>glfw3.lib;D:\Development\VulkanSDK\1.3.239.0\Lib\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\ThirdParty\glfw-3.3.8.bin.WIN64\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;EtcLib.lib;OptickCore.lib;D:\Development\VulkanSDK\1.3.243.0\Lib\vulkan-1.lib;easy_profiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\ThirdParty\etc2comp\Lib;..\ThirdParty\Optick_1.4.0\lib\x64\release;..\ThirdParty\glfw-3.3.8.bin.WIN64\lib-vc2022;..\ThirdParty\easy_profiler-v2.1.0-msvc15-win64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <Manifest>
       <EnableDpiAwareness>true</EnableDpiAwareness>
@@ -199,6 +199,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\ThirdParty\VulkanMemoryAllocator\src\vk_mem_alloc.cpp" />
+    <ClCompile Include="..\ThirdParty\etc2comp\EtcTool\EtcFile.cpp" />
+    <ClCompile Include="..\ThirdParty\etc2comp\EtcTool\EtcFileHeader.cpp" />
     <ClCompile Include="..\ThirdParty\volk\src\volk.c" />
     <ClCompile Include="..\VulkanApp\src\DebugUtil.cpp" />
     <ClCompile Include="..\VulkanApp\src\GeometryGenerator.cpp" />

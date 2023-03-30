@@ -44,6 +44,12 @@
     <ClCompile Include="..\ThirdParty\VulkanMemoryAllocator\src\vk_mem_alloc.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="..\ThirdParty\etc2comp\EtcTool\EtcFile.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\etc2comp\EtcTool\EtcFileHeader.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="..\ThirdParty\volk\src\volk.c">
       <Filter>Sources</Filter>
     </ClCompile>

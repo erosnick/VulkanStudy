@@ -400,6 +400,10 @@ private:
 
 	void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t width, int32_t height, uint32_t mipLevels);
 
+	std::vector<std::string> visit(std::string path);
+
+	void etc2Compress(const std::string& inputPath, const std::string& overrideOutputPath = "");
+
 	void loadResources();
 
 	void createTextureImageViews();
@@ -413,6 +417,7 @@ private:
 
 	void updateImageView(VkImageView imageView, VkImageView alphaImageView, uint32_t frameIndex);
 
+	void initOptick();
 	void initWindow();
 	void initVulkan();
 	void initImGui();
