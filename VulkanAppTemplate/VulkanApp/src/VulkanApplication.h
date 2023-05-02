@@ -296,10 +296,12 @@ private:
 	void createGraphicsPipeline();
 	void createComputePipeline();
 	void createFramebuffers();
+	void createRenderTextureFramebuffer();
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
 	void createColorResources();
 	void createDepthResources();
+	void createRenderTexture();
 	Image createTextureImage(const std::string& path, Channel requireChannels = Channel::RGBAlpha);
 	Image createTextureImageVma(const std::string& path, Channel requireChannels = Channel::RGBAlpha);
 	VkImageView createTextureImageView(VkImage image);
@@ -367,6 +369,7 @@ private:
 	SimpleModel mergeModels(const std::vector<SimpleModel>& models);
 
 	void recordGraphicsCommandBuffer(VkCommandBuffer graphicsCommandBuffer, uint32_t imageIndex);
+	void recordRenderTextureGraphicsCommandBuffer(VkCommandBuffer graphicsCommandBuffer, uint32_t imageIndex);
 	void recordComputeCommandBuffer(VkCommandBuffer computeCommandBuffer);
 
 	VkShaderModule createShaderModule(const std::vector<char>& shaderCode);
@@ -455,6 +458,7 @@ private:
 	void mainLoop();
 	void update();
 	void drawFrame();
+	void drawRenderTextureFrame();
 	void cleanup();
 
 	void processInput(float deltaTime);
@@ -505,7 +509,8 @@ private:
 	Image textureImage;
 	VkSampler textureSampler;
 	Image depthImage;
-	Image colorImage;
+	Image colorImage;	// For MSAA
+	Image renderTextureImage;
 	Buffer vertexBuffer;
 	Buffer indexBuffer;
 	std::vector<VkDescriptorSet> graphicsDescriptorSets;
@@ -525,6 +530,7 @@ private:
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImageView> swapChainImageViews;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
+	VkFramebuffer renderTextureFramebuffer;
 	std::vector<Image> textureImages;
 	std::vector<Buffer> shaderStorageBuffers;
 	VkFormat swapChainImageFormat;
