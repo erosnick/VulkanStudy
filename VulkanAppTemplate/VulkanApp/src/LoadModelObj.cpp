@@ -53,6 +53,12 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 		if (!mat.diffuse_texname.empty())
 			mi.diffuseTexturePath = prefix + mat.diffuse_texname;
 
+		if (!mat.normal_texname.empty())
+			mi.normalTexturePath = prefix + mat.normal_texname;
+
+		if (!mat.bump_texname.empty())
+			mi.normalTexturePath = prefix + mat.bump_texname;
+
 		if (!mat.alpha_texname.empty())
 			mi.alphaTexturePath = prefix + mat.alpha_texname;
 
@@ -108,6 +114,7 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 
 			bool const textured = !ret.materials[matId].diffuseTexturePath.empty();
 			bool const alphaTextured = !ret.materials[matId].alphaTexturePath.empty();
+			bool const normalTextured = !ret.materials[matId].normalTexturePath.empty();
 
 			if (!textured)
 			{
@@ -192,6 +199,7 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 			meshInfo.materialIndex = matId;
 			meshInfo.textured = textured;
 			meshInfo.alphaTextured = alphaTextured;
+			meshInfo.normalTextured = normalTextured;
 			meshInfo.vertexStartIndex = firstVertex;
 
 			auto const vertexCount = opos->size() - firstVertex;

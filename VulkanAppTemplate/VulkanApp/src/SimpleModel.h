@@ -24,9 +24,11 @@ struct SimpleMaterialInfo
 
 	glm::vec3 diffuseColor;
 	std::string diffuseTexturePath;
+	std::string normalTexturePath;
 	std::string alphaTexturePath;
 
 	uint32_t diffuseTextureIndex = 0;
+	uint32_t normalTextureIndex = 0;
 	uint32_t alphaTextureIndex = 0;
 
 	float metallic = 0.1f;
@@ -56,6 +58,7 @@ struct SimpleMeshInfo
 
 	bool textured : 1;
 	bool alphaTextured : 1;
+	bool normalTextured : 1;
 
 	std::size_t vertexStartIndex = 0;
 	std::size_t vertexCount = 0;
