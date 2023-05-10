@@ -148,6 +148,7 @@ struct MaterialUniformBufferObject
 	float roughness = 0.5f;
 	float ao = 1.0f;
 	int32_t diffuseTextureIndex = 0;
+	int32_t normalTextureIndex = 0;
 	int32_t alphaTextureIndex = 0;
 };
 
@@ -265,6 +266,7 @@ struct MeshGeometry
 	uint32_t indexCount = 0;
 	uint32_t indexStartIndex = 0;
 	bool hasTexture = false;
+	bool hasNormalTexture = false;
 	bool hasAlphaTexture = false;
 	bool dirty = true;
 	std::shared_ptr<Material> material;
@@ -390,6 +392,8 @@ private:
 
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	VkImageView createImageView(Image image, VkImageAspectFlags aspectFlags);
+
+	void generateTangents(SimpleModel& model);
 
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
 
@@ -557,6 +561,7 @@ private:
 	SimpleModel cube;
 	SimpleModel sphere;
 	SimpleModel marry;
+	SimpleModel disc;
 	SimpleModel mergedModel;
 	
 	std::vector<SimpleModel> models;

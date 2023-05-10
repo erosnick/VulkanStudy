@@ -9,6 +9,7 @@
 struct Material
 {
 	bool hasTexture() { return !diffuseTexturePath.empty(); }
+	bool hasNormalTexture() { return !normalTexturePath.empty(); }
 	bool hasAlphaTexture() { return !alphaTexturePath.empty(); }
 
 	glm::vec3 Kd;
@@ -25,8 +26,10 @@ struct Material
 	float roughness;
 	bool hasNormalMap = false;
 	uint32_t diffuseTextureIndex = 0;
+	uint32_t normalTextureIndex = 0;
 	uint32_t alphaTextureIndex = 0;
 	std::string diffuseTexturePath;
+	std::string normalTexturePath;
 	std::string alphaTexturePath;
 };
 

@@ -7,6 +7,7 @@ layout (location = 1) in vec2 texcoord;
 layout (location = 2) in vec3 fragColor;
 layout (location = 3) in vec3 cameraPosition;
 layout (location = 4) in vec3 worldPosition;
+layout (location = 5) in mat3 TBN;
 
 const int LightCount = 16;
 
@@ -17,6 +18,7 @@ layout (binding = 2) uniform MaterialUniformBufferObject
 	float roughness;
 	float ao;
 	int diffuseTextureIndex;
+    int normalTextureIndex;
     int alphaTextureIndex;
 
 } materialUBO;
@@ -30,8 +32,7 @@ layout (binding = 3) uniform LightUniformBufferObject
 
 const int TextureUnits = 64;
 
-layout (binding = 4) uniform sampler2D alphaTextureSampler;
-layout (binding = 5) uniform sampler2D textureSampler[];
+layout (binding = 4) uniform sampler2D textureSampler[];
 
 layout (location = 0) out vec4 outColor;
 
@@ -102,6 +103,14 @@ void main()
     }
 
     vec3 N = normalize(normal);
+
+    if (materialUBO.albedo.a > 2.0)
+    {
+        N = texture(textureSampler[materialUBO.normalTextureIndex], texcoord).rgb;
+        N = N * 2.0 - 1.0;
+        N = normalize(TBN * N);
+    }
+
     vec3 V = normalize(cameraPosition - worldPosition);
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 

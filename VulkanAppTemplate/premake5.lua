@@ -55,6 +55,7 @@ project "VulkanApp"
         "%{prj.name}/src/**.h", 
         "%{prj.name}/src/**.cpp",
         "./ThirdParty/volk/src/volk.c",
+        "./ThirdParty/tgen/src/tgen.cpp",
         "./ThirdParty/etc2comp/EtcTool/EtcFile.cpp",
         "./ThirdParty/etc2comp/EtcTool/EtcFileHeader.cpp",
         "./ThirdParty/VulkanMemoryAllocator/src/vk_mem_alloc.cpp"
@@ -75,6 +76,7 @@ project "VulkanApp"
         symbols "On"                        --开启调试符号
         includedirs 
         { 
+            './ThirdParty/tgen/include',
             './ThirdParty/stb',
             './ThirdParty/etc2comp',
             './ThirdParty/etc2comp/EtcLib/Etc',
@@ -118,6 +120,7 @@ project "VulkanApp"
         optimize "On"                        --开启优化参数
         includedirs 
         { 
+            './ThirdParty/tgen/include',
             './ThirdParty/stb',
             './ThirdParty/etc2comp',
             './ThirdParty/etc2comp/EtcLib/Etc',

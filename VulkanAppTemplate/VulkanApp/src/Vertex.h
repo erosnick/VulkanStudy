@@ -38,7 +38,7 @@ struct Vertex
 		return vertexInputBindingDescription;
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions()
+	static std::array<VkVertexInputAttributeDescription, 5> getAttributeDescriptions()
 	{
 		// The binding parameter tells Vulkan from which binding the per - vertex data comes.The location parameter references 
 		// the location directive of the input in the vertex shader.The input in the vertex shader with location 0 is the position,
@@ -51,7 +51,7 @@ struct Vertex
 		// vec2 : VK_FORMAT_R32G32_SFLOAT
 		// vec3 : VK_FORMAT_R32G32B32_SFLOAT
 		// vec4 : VK_FORMAT_R32G32B32A32_SFLOAT
-		std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+		std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions{};
 
 		attributeDescriptions[0].binding = 0;
 		attributeDescriptions[0].location = 0;
@@ -65,19 +65,25 @@ struct Vertex
 
 		attributeDescriptions[2].binding = 0;
 		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex, texcoord);
+		attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[2].offset = offsetof(Vertex, tangent);
 
 		attributeDescriptions[3].binding = 0;
 		attributeDescriptions[3].location = 3;
-		attributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[3].offset = offsetof(Vertex, color);
+		attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[3].offset = offsetof(Vertex, texcoord);
+
+		attributeDescriptions[4].binding = 0;
+		attributeDescriptions[4].location = 4;
+		attributeDescriptions[4].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[4].offset = offsetof(Vertex, color);
 
 		return attributeDescriptions;
 	}
 
 	glm::vec3 position{ 0.0f, 0.0f, 0.0f };
 	glm::vec3 normal{ 0.0f, 0.0f, 0.0f };
+	glm::vec3 tangent{ 0.0f, 0.0f, 0.0f };
 	glm::vec2 texcoord{ 0.0f, 0.0f };
 	glm::vec3 color{ 1.0f, 1.0f, 1.0f };
 };

@@ -50,6 +50,9 @@
     <ClCompile Include="..\ThirdParty\etc2comp\EtcTool\EtcFileHeader.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="..\ThirdParty\tgen\src\tgen.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="..\ThirdParty\volk\src\volk.c">
       <Filter>Sources</Filter>
     </ClCompile>
