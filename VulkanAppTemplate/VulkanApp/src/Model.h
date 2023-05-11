@@ -25,11 +25,15 @@ struct Material
 	float metallic;
 	float roughness;
 	bool hasNormalMap = false;
-	uint32_t diffuseTextureIndex = 0;
+	uint32_t diffuseTextureIndex = -1;
 	uint32_t normalTextureIndex = 0;
+	uint32_t roughnessTextureIndex = 0;
+	uint32_t metallicTextureIndex = 0;
 	uint32_t alphaTextureIndex = 0;
 	std::string diffuseTexturePath;
 	std::string normalTexturePath;
+	std::string roughtnessTexturePath;
+	std::string metallicTexturePath;
 	std::string alphaTexturePath;
 };
 

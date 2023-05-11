@@ -19,6 +19,8 @@ layout (binding = 2) uniform MaterialUniformBufferObject
 	float ao;
 	int diffuseTextureIndex;
     int normalTextureIndex;
+    int roughnessTextureIndex;
+    int metallicTextureIndex;
     int alphaTextureIndex;
 
 } materialUBO;
@@ -83,7 +85,7 @@ void main()
 {
     vec3 albedo = vec3(1.0);
 
-    if (materialUBO.albedo.a > 0.0)
+    if (materialUBO.diffuseTextureIndex >= 0)
     {
         albedo = pow(texture(textureSampler[materialUBO.diffuseTextureIndex], texcoord).rgb, vec3(2.2));
     }
@@ -92,19 +94,23 @@ void main()
         albedo = materialUBO.albedo.rgb;
     }
 
-    if (materialUBO.albedo.a > 1.0)
+    vec3 testColor = vec3(0.0, 0.0, 0.0);
+
+    if (materialUBO.alphaTextureIndex > 0)
     {
-        float alpha = texture(textureSampler[materialUBO.alphaTextureIndex], texcoord).r;
+        float alpha = texture(textureSampler[materialUBO.alphaTextureIndex], texcoord).a;
 
         if (alpha < 0.1)
         {
+            testColor = vec3(1.0, 0.0, 0.0);
+
             discard;
         }
     }
 
     vec3 N = normalize(normal);
 
-    if (materialUBO.albedo.a > 2.0)
+    if (materialUBO.normalTextureIndex > 0)
     {
         N = texture(textureSampler[materialUBO.normalTextureIndex], texcoord).rgb;
         N = N * 2.0 - 1.0;
@@ -114,9 +120,25 @@ void main()
     vec3 V = normalize(cameraPosition - worldPosition);
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
+    // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)
+    float roughness = materialUBO.roughness;
+
+    if (materialUBO.roughnessTextureIndex > 0)
+    {
+        roughness = texture(textureSampler[materialUBO.roughnessTextureIndex], texcoord).r;
+    }
+
+    float metallic = materialUBO.metallic;
+
+    if (materialUBO.metallicTextureIndex > 0)
+    {
+        metallic = texture(textureSampler[materialUBO.metallicTextureIndex], texcoord).r;
+    }
+
+    // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
     vec3 F0 = vec3(0.04); 
-    F0 = mix(F0, albedo, materialUBO.metallic);
+    F0 = mix(F0, albedo, metallic);
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
@@ -131,8 +153,8 @@ void main()
         vec3 radiance = lightUBO.lightColors[i].xyz * attenuation;
 
         // Cook-Torrance BRDF
-        float NDF = distributionGGX(N, H, materialUBO.roughness);
-        float G   = geometrySmith(N, V, L, materialUBO.roughness);
+        float NDF = distributionGGX(N, H, roughness);
+        float G   = geometrySmith(N, V, L, roughness);
         vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
            
         vec3 numerator    = NDF * G * F; 
@@ -148,7 +170,7 @@ void main()
         // multiply kD by the inverse metalness such that only non-metals 
         // have diffuse lighting, or a linear blend if partly metal (pure metals
         // have no diffuse light).
-        kD *= 1.0 - materialUBO.metallic;
+        kD *= 1.0 - metallic;
 
         // scale light by NdotL
         float NdotL = max(dot(N, L), 0.0);
@@ -172,6 +194,15 @@ void main()
     // finalColor = pow(finalColor, vec3(1.0 / 2.2));
 
     outColor = vec4(vec3(finalColor), 1.0);
+    // outColor = vec4(testColor, 1.0);
+    // outColor = vec4(diffuse, 1.0);            // Visualize diffuse
+    // outColor = vec4(specular, 1.0);           // Visualize specular term
+    // outColor = vec4(F, 1.0);                  // Visualize Fresnel
+    // outColor = vec4(vec3(roughness), 1.0);    // Visualize roughness
+    // outColor = vec4(vec3(metallic), 1.0);     // Visualize metallic
+    // outColor = vec4(N, 1.0); // Visualize normal
+    // outColor = vec4(V, 1.0); // Visualize view direction
+    // outColor = vec4(lightDirection, 1.0); // Visualize light direction
     // // outColor = vec4(materialUniformBufferObject.diffuseColor.rgb, 1.0);
     // // outColor = vec4(vec3(materialUniformBufferObject.diffuseColor.r, 0.0, 0.0), 1.0);
 }

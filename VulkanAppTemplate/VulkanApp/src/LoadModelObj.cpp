@@ -59,6 +59,12 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 		if (!mat.bump_texname.empty())
 			mi.normalTexturePath = prefix + mat.bump_texname;
 
+		if (!mat.roughness_texname.empty())
+			mi.roughnessTexturePath = prefix + mat.roughness_texname;
+
+		if (!mat.metallic_texname.empty())
+			mi.metallicTexturePath = prefix + mat.metallic_texname;
+
 		if (!mat.alpha_texname.empty())
 			mi.alphaTexturePath = prefix + mat.alpha_texname;
 
@@ -115,6 +121,8 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 			bool const textured = !ret.materials[matId].diffuseTexturePath.empty();
 			bool const alphaTextured = !ret.materials[matId].alphaTexturePath.empty();
 			bool const normalTextured = !ret.materials[matId].normalTexturePath.empty();
+			bool const roughnessTextured = !ret.materials[matId].roughnessTexturePath.empty();
+			bool const metallicTextured = !ret.materials[matId].metallicTexturePath.empty();
 
 			if (!textured)
 			{
@@ -200,6 +208,8 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 			meshInfo.textured = textured;
 			meshInfo.alphaTextured = alphaTextured;
 			meshInfo.normalTextured = normalTextured;
+			meshInfo.roughnessTextured = roughnessTextured;
+			meshInfo.metallicTextured = metallicTextured;
 			meshInfo.vertexStartIndex = firstVertex;
 
 			auto const vertexCount = opos->size() - firstVertex;

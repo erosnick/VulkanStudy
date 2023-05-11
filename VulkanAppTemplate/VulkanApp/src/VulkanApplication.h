@@ -147,8 +147,10 @@ struct MaterialUniformBufferObject
 	float metallic = 0.0f;
 	float roughness = 0.5f;
 	float ao = 1.0f;
-	int32_t diffuseTextureIndex = 0;
+	int32_t diffuseTextureIndex = -1;
 	int32_t normalTextureIndex = 0;
+	int32_t roughnessTextureIndex = 0;
+	int32_t metallicTextureIndex = 0;
 	int32_t alphaTextureIndex = 0;
 };
 
@@ -575,6 +577,7 @@ private:
 	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	std::vector<std::string> textureImagePaths;
+	std::unordered_map<std::string, int32_t> texturePathIndexMap;
 
 	DebugUtil debugUtil;
 
