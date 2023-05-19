@@ -303,9 +303,10 @@ private:
 	void createRenderTextureFramebuffer();
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
-	void createColorResources();
-	void createDepthResources();
+	void createColorResources(Image& colorImage, VkSampleCountFlagBits numSamples);
+	void createDepthResources(Image& depthImage, VkSampleCountFlagBits numSamples);
 	void createRenderTexture();
+	void prepareOffscreen();
 	Image createTextureImage(const std::string& path, Channel requireChannels = Channel::RGBAlpha);
 	Image createTextureImageVma(const std::string& path, Channel requireChannels = Channel::RGBAlpha);
 	VkImageView createTextureImageView(VkImage image);
@@ -373,6 +374,11 @@ private:
 	SimpleModel mergeModels(const std::vector<SimpleModel>& models);
 
 	void recordGraphicsCommandBuffer(VkCommandBuffer graphicsCommandBuffer, uint32_t imageIndex);
+
+	void offscreenRenderPass(uint32_t imageIndex, VkCommandBuffer graphicsCommandBuffer);
+
+	void sceneRenderPass(uint32_t imageIndex, VkCommandBuffer graphicsCommandBuffer);
+
 	void recordRenderTextureGraphicsCommandBuffer(VkCommandBuffer graphicsCommandBuffer, uint32_t imageIndex);
 	void recordComputeCommandBuffer(VkCommandBuffer computeCommandBuffer);
 
@@ -381,7 +387,7 @@ private:
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void createBuffer(Buffer& buffer);
 
-	void createBufferVma(Buffer& buffer);
+	void createBufferVma(Buffer& buffer, const std::string& name = "");
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	void destroyBuffer(Buffer& buffer, bool mapped = false);
 	void destroyImage(Image& image);
@@ -390,7 +396,7 @@ private:
 		 VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage& image, VkDeviceMemory& imageMemory);
 
 	void createImage(Image& image);
-	void createImageVma(Image& image);
+	void createImageVma(Image& image, const std::string& name = "");
 
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	VkImageView createImageView(Image image, VkImageAspectFlags aspectFlags);
@@ -516,9 +522,10 @@ private:
 	VkSampler textureSampler;
 	Image depthImage;
 	Image colorImage;	// For MSAA
-	Image renderTextureImage;
 	Buffer vertexBuffer;
 	Buffer indexBuffer;
+	Buffer quadVertexBuffer;
+	Buffer quadIndexBuffer;
 	std::vector<VkDescriptorSet> graphicsDescriptorSets;
 	std::vector<VkDescriptorSet> computeDescriptorSets;
 	std::vector<Buffer> globalUniformBuffers;
@@ -582,4 +589,17 @@ private:
 	DebugUtil debugUtil;
 
 	VmaAllocator vmaAllocator;
+
+	// Taken from https://github.com/SaschaWillems/Vulkan/blob/master/examples/offscreen/offscreen.cpp
+	struct OffscreenPass 
+	{
+		int32_t width, height;
+		VkFramebuffer frameBuffer;
+		Image color;
+		Image depth;
+		VkRenderPass renderPass;
+		VkSampler sampler;
+		VkPipeline pipeline;
+		VkDescriptorImageInfo descriptor;
+	} offscreenPass;
 };

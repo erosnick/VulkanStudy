@@ -34,7 +34,8 @@ layout (binding = 3) uniform LightUniformBufferObject
 
 const int TextureUnits = 64;
 
-layout (binding = 4) uniform sampler2D textureSampler[];
+layout (binding = 4) uniform sampler2D renderTextureSampler;
+layout (binding = 5) uniform sampler2D textureSampler[];
 
 layout (location = 0) out vec4 outColor;
 
@@ -93,6 +94,8 @@ void main()
     {
         albedo = materialUBO.albedo.rgb;
     }
+
+    albedo = pow(texture(renderTextureSampler, texcoord).rgb, vec3(2.2));
 
     vec3 testColor = vec3(0.0, 0.0, 0.0);
 

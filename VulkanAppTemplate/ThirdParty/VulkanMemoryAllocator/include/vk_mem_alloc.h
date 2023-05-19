@@ -6148,6 +6148,8 @@ public:
     void Register(VmaAllocation alloc);
     void Unregister(VmaAllocation alloc);
 
+    void PrintAllocationList();
+
 private:
     typedef VmaIntrusiveLinkedList<VmaDedicatedAllocationListItemTraits> DedicatedAllocationLinkedList;
 
@@ -6164,6 +6166,7 @@ VmaDedicatedAllocationList::~VmaDedicatedAllocationList()
 
     if (!m_AllocationList.IsEmpty())
     {
+        PrintAllocationList();
         VMA_ASSERT(false && "Unfreed dedicated allocations found!");
     }
 }

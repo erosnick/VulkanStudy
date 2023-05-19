@@ -12,13 +12,13 @@ struct Material
 	bool hasNormalTexture() { return !normalTexturePath.empty(); }
 	bool hasAlphaTexture() { return !alphaTexturePath.empty(); }
 
-	glm::vec3 Kd;
-	glm::vec3 Ka;
-	glm::vec3 Ks;
-	glm::vec3 Ke;
-	float shininess;
-	float reflectionFactor;
-	float refractionFactor;
+	glm::vec3 Kd{0.0f};
+	glm::vec3 Ka{0.0f};
+	glm::vec3 Ks{0.0f};
+	glm::vec3 Ke{0.0f};
+	float shininess = 0.0f;
+	float reflectionFactor = 0.0f;
+	float refractionFactor = 0.0f;
 	// relative index of refraction(n1/n2)
 	float ior;
 	float eta;
