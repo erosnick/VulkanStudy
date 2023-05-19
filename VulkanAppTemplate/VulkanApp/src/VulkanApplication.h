@@ -31,23 +31,16 @@
 
 const std::vector<Vertex> quadVertices =
 {
-	{ { -0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
-	{ {  0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
-	{ {  0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
-	{ { -0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } },
-
-	{ { -0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f }},
-	{ {  0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f }},
-	{ {  0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }},
-	{ { -0.5f,  0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }}
+	{ { -1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
+	{ {  1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+	{ {  1.0f,  1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+	{ { -1.0f,  1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 1.0f } },
 };
 
 const std::vector<uint32_t> quadIndices =
 {
 	0, 1, 2,
 	2, 3, 0,
-	4, 5, 6,
-	6, 7, 4
 };
 
 constexpr uint32_t LightCount = 16;
@@ -379,9 +372,12 @@ private:
 
 	void sceneRenderPass(uint32_t imageIndex, VkCommandBuffer graphicsCommandBuffer);
 
+	void screenQuadRenderPass(uint32_t imageIndex, VkCommandBuffer graphicsCommandBuffer);
+
 	void recordRenderTextureGraphicsCommandBuffer(VkCommandBuffer graphicsCommandBuffer, uint32_t imageIndex);
 	void recordComputeCommandBuffer(VkCommandBuffer computeCommandBuffer);
 
+	VkShaderModule createShaderModule(const std::string& path);
 	VkShaderModule createShaderModule(const std::vector<char>& shaderCode);
 
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
@@ -513,6 +509,7 @@ private:
 	VkPipelineLayout particlePipelineLayout;
 	VkPipelineLayout computePipelineLayout;
 	VkPipeline graphicsPipeline;
+	VkPipeline screenQuadPipeline;
 	VkPipeline particlePipeline;
 	VkPipeline computePipeline;
 	VkCommandPool graphicsCommandPool;
@@ -567,6 +564,7 @@ private:
 	std::vector<VkImageView> imageViews;
 
 	SimpleModel sponza;
+	SimpleModel plane;
 	SimpleModel cube;
 	SimpleModel sphere;
 	SimpleModel marry;
