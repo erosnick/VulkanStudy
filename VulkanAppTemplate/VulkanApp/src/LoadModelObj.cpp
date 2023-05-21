@@ -210,10 +210,8 @@ SimpleModel loadSimpleWavefrontObj(char const* aPath)
 			meshInfo.normalTextured = normalTextured;
 			meshInfo.roughnessTextured = roughnessTextured;
 			meshInfo.metallicTextured = metallicTextured;
-			meshInfo.vertexStartIndex = firstVertex;
 
-			auto const vertexCount = opos->size() - firstVertex;
-			assert(!textured || vertexCount == otex->size() - firstVertex);
+			auto const vertexCount = vertices.size();
 
 			auto const indexCount = ret.indices.size() - firstIndex;
 

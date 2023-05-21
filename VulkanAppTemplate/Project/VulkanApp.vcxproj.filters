@@ -9,6 +9,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\VulkanApp\src\BakedModel.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
     <ClInclude Include="..\VulkanApp\src\Camera.h">
       <Filter>Headers</Filter>
     </ClInclude>
@@ -28,6 +31,9 @@
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="..\VulkanApp\src\SimpleModel.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\Timer.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="..\VulkanApp\src\Vertex.h">
@@ -57,6 +63,9 @@
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\ThirdParty\volk\src\volk.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\BakedModel.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\VulkanApp\src\DebugUtil.cpp">

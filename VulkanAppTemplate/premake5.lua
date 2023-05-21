@@ -70,6 +70,12 @@ project "VulkanApp"
         ["Docs"] = "**.md"
     }
 
+    excludes 
+    { 
+        "%{prj.name}/src/MeshBake/**.h", 
+        "%{prj.name}/src/MeshBake/**.cpp", 
+    }
+
     --Debug配置项属性
     filter "configurations:Debug"
         defines { "DEBUG", "FMT_HEADER_ONLY" }                 --定义Debug宏(这可以算是默认配置)
@@ -157,6 +163,114 @@ project "VulkanApp"
         }
 
         debugdir "%{prj.location}"
+
+project "MeshBake"
+    kind "ConsoleApp"                       --项目类型，控制台程序
+    language "C++"                          --工程采用的语言，Premake5.0当前支持C、C++、C#
+    location "Project"
+
+    -- copy a file from the objects directory to the target directory
+    postbuildcommands 
+    {
+    -- "{COPY} %{cfg.targetdir}/AriaCore.dll %{wks.location}"
+    }
+
+    files 
+    { 
+        "VulkanApp/src/MeshBake/**.h", 
+        "VulkanApp/src/MeshBake/**.cpp", 
+        "VulkanApp/src/labutils/error.hpp",
+        "VulkanApp/src/labutils/error.cpp",
+        "ThirdParty/tgen/src/tgen.cpp"
+    }                                       --指定加载哪些文件或哪些类型的文件
+
+    --Debug配置项属性
+    filter "configurations:Debug"
+        defines { "DEBUG", "ARIA_CORE_DEBUG", "ARIA_PLATFORM_WINDOWS" }                 --定义Debug宏(这可以算是默认配置)
+        symbols "On"                                           --开启调试符号
+        debugdir "%{prj.location}"
+
+        includedirs 
+        { 
+            './ThirdParty/tgen/include',
+            './ThirdParty/stb',
+            './ThirdParty/etc2comp',
+            './ThirdParty/etc2comp/EtcLib/Etc',
+            './ThirdParty/etc2comp/EtcLib/EtcCodec',
+            '%{IncludeDir.VulkanSDK}',
+            './ThirdParty/volk/include',
+            './ThirdParty/imgui-1.89.2',
+            './ThirdParty/tinyobjloader',
+            './ThirdParty/glm-0.9.9.8/glm',
+            './ThirdParty/fmt-9.1.0/include',
+            './ThirdParty/Optick_1.4.0/include',
+            './ThirdParty/rapidobj-1.0.1/include',
+            './ThirdParty/glfw-3.3.8.bin.WIN64/include',
+            './ThirdParty/VulkanMemoryAllocator/include',
+            './ThirdParty/easy_profiler-v2.1.0-msvc15-win64/include',
+        }
+
+		libdirs 
+        { 
+            './ThirdParty/etc2comp/Lib',
+            './ThirdParty/Optick_1.4.0/lib/x64/release',
+            './ThirdParty/glfw-3.3.8.bin.WIN64/lib-vc2022',
+            './ThirdParty/easy_profiler-v2.1.0-msvc15-win64/lib'
+        }
+
+		links 
+        { 
+            "ImGui",
+            "glfw3.lib", 
+            "EtcLibd.lib",
+            "OptickCore.lib",
+            "%{Library.Vulkan}",
+            "easy_profiler.lib"
+        }
+
+    --Release配置项属性
+    filter "configurations:Release"
+        defines { "NDEBUG", "ARIA_RELEASE", "ARIA_PLATFORM_WINDOWS" }                 --定义NDebug宏(这可以算是默认配置)
+        optimize "On"                                           --开启优化参数
+        debugdir "%{prj.location}"
+
+        includedirs 
+        { 
+            './ThirdParty/tgen/include',
+            './ThirdParty/stb',
+            './ThirdParty/etc2comp',
+            './ThirdParty/etc2comp/EtcLib/Etc',
+            './ThirdParty/etc2comp/EtcLib/EtcCodec',
+            '%{IncludeDir.VulkanSDK}',
+            './ThirdParty/volk/include',
+            './ThirdParty/imgui-1.89.2',
+            './ThirdParty/tinyobjloader',
+            './ThirdParty/glm-0.9.9.8/glm',
+            './ThirdParty/fmt-9.1.0/include',
+            './ThirdParty/Optick_1.4.0/include',
+            './ThirdParty/rapidobj-1.0.1/include',
+            './ThirdParty/glfw-3.3.8.bin.WIN64/include',
+            './ThirdParty/VulkanMemoryAllocator/include',
+            './ThirdParty/easy_profiler-v2.1.0-msvc15-win64/include',
+        }
+
+		libdirs 
+        { 
+            './ThirdParty/etc2comp/Lib',
+            './ThirdParty/Optick_1.4.0/lib/x64/release',
+            './ThirdParty/glfw-3.3.8.bin.WIN64/lib-vc2022',
+            './ThirdParty/easy_profiler-v2.1.0-msvc15-win64/lib'
+        }
+
+		links 
+        { 
+            "ImGui",
+            "glfw3.lib", 
+            "EtcLibd.lib",
+            "OptickCore.lib",
+            "%{Library.Vulkan}",
+            "easy_profiler.lib"
+        }
 
 include "Etc2Compress"
 include "External.lua"

@@ -66,7 +66,6 @@ struct SimpleMeshInfo
 	bool roughnessTextured : 1;
 	bool metallicTextured : 1;
 
-	std::size_t vertexStartIndex = 0;
 	std::size_t vertexCount = 0;
 	std::size_t indexStartIndex = 0;
 	std::size_t indexCount = 0;

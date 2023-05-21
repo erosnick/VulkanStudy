@@ -5,19 +5,19 @@
 #define IMGUI_VULKAN_DEBUG_REPORT
 #endif
 
-int main() 
+int main()
 {
-	VulkanApplication app;
+    VulkanApplication app;
 
-	try
-	{
-		app.run();
-	}
-	catch (const std::exception& e)
-	{
-		fmt::print("{}\n", e.what());
-		return EXIT_FAILURE;
-	}
+    try
+    {
+        app.run();
+    }
+    catch (const std::exception &e)
+    {
+        fmt::print("{}\n", e.what());
+        return EXIT_FAILURE;
+    }
 
-	return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
 }

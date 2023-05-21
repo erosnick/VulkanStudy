@@ -191,7 +191,7 @@ void main()
     finalColor = finalColor / (finalColor + vec3(1.0));
 
     // gamma correct
-    // 交换链使用VK_FORMAT_B8G8R8A8_SRGB格式，shader里不用对最终接过进行gamma correction，这一步会自动执行(和OpenGL不同)
+    // 交换链使用VK_FORMAT_B8G8R8A8_SRGB格式，shader里不用对最终结果进行gamma correction，这一步会自动执行(和OpenGL不同)
     // finalColor = pow(finalColor, vec3(1.0 / 2.2));
 
     outColor = vec4(vec3(finalColor), 1.0);

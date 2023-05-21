@@ -29,6 +29,8 @@
 
 #include "Resources.h"
 
+#include "BakedModel.h"
+
 const std::vector<Vertex> quadVertices =
 {
 	{ { -1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
@@ -415,6 +417,10 @@ private:
 
 	void etc2Compress(const std::string& inputPath, const std::string& overrideOutputPath = "");
 
+	SimpleMaterialInfo bakedMaterial2SimpleMaterial(const BakedMaterialInfo& bakedMaterial, const std::vector<BakedTextureInfo>& bakedTextures);
+
+	SimpleModel bakedModel2SimpleModel(const BakedModel& bakedModel);
+
 	void loadResources();
 
 	void createTextureImageViews();
@@ -564,6 +570,7 @@ private:
 	std::vector<VkImageView> imageViews;
 
 	SimpleModel sponza;
+	SimpleModel bakedSponza;
 	SimpleModel plane;
 	SimpleModel cube;
 	SimpleModel sphere;

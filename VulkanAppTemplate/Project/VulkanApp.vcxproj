@@ -186,6 +186,7 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\VulkanApp\src\BakedModel.h" />
     <ClInclude Include="..\VulkanApp\src\Camera.h" />
     <ClInclude Include="..\VulkanApp\src\DebugUtil.h" />
     <ClInclude Include="..\VulkanApp\src\GeometryGenerator.h" />
@@ -193,6 +194,7 @@
     <ClInclude Include="..\VulkanApp\src\Model.h" />
     <ClInclude Include="..\VulkanApp\src\Resources.h" />
     <ClInclude Include="..\VulkanApp\src\SimpleModel.h" />
+    <ClInclude Include="..\VulkanApp\src\Timer.h" />
     <ClInclude Include="..\VulkanApp\src\Vertex.h" />
     <ClInclude Include="..\VulkanApp\src\VulkanApplication.h" />
     <ClInclude Include="..\VulkanApp\src\VulkanInitializers.h" />
@@ -204,6 +206,7 @@
     <ClCompile Include="..\ThirdParty\etc2comp\EtcTool\EtcFileHeader.cpp" />
     <ClCompile Include="..\ThirdParty\tgen\src\tgen.cpp" />
     <ClCompile Include="..\ThirdParty\volk\src\volk.c" />
+    <ClCompile Include="..\VulkanApp\src\BakedModel.cpp" />
     <ClCompile Include="..\VulkanApp\src\DebugUtil.cpp" />
     <ClCompile Include="..\VulkanApp\src\GeometryGenerator.cpp" />
     <ClCompile Include="..\VulkanApp\src\ImGui\ImGuiBuild.cpp" />

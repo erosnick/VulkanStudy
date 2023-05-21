@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="ThirdParty">
+      <UniqueIdentifier>{107145F9-FC28-8746-6530-60A251072237}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty\tgen">
+      <UniqueIdentifier>{4D7A3A4C-B905-A810-C216-2B052E210411}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ThirdParty\tgen\src">
+      <UniqueIdentifier>{E496747E-50F8-518C-D965-983E45C6884B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VulkanApp">
+      <UniqueIdentifier>{77264388-E390-F7FE-2CCF-A8A49878D553}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VulkanApp\src">
+      <UniqueIdentifier>{0E48EBA9-7A08-67E0-4343-B05DAFC2ABBC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VulkanApp\src\Bake">
+      <UniqueIdentifier>{50DC58AC-3CC0-1902-A520-145591230484}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VulkanApp\src\labutils">
+      <UniqueIdentifier>{9DF43F5A-89EE-68AC-725B-FFBC5EF4CE18}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\VulkanApp\src\Bake\IndexMesh.h">
+      <Filter>VulkanApp\src\Bake</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\Bake\InputModel.h">
+      <Filter>VulkanApp\src\Bake</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\Bake\LoadModelObj.h">
+      <Filter>VulkanApp\src\Bake</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VulkanApp\src\labutils\error.hpp">
+      <Filter>VulkanApp\src\labutils</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\ThirdParty\tgen\src\tgen.cpp">
+      <Filter>ThirdParty\tgen\src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\Bake\IndexMesh.cpp">
+      <Filter>VulkanApp\src\Bake</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\Bake\LoadModelObj.cpp">
+      <Filter>VulkanApp\src\Bake</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\Bake\main.cpp">
+      <Filter>VulkanApp\src\Bake</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VulkanApp\src\labutils\error.cpp">
+      <Filter>VulkanApp\src\labutils</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
