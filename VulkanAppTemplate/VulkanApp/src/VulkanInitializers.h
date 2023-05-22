@@ -425,12 +425,31 @@ namespace vks
 		{
 			VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo {};
 			pipelineRasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+
+			// Using any mode other than fill requires enabling a GPU feature.
 			pipelineRasterizationStateCreateInfo.polygonMode = polygonMode;
 			pipelineRasterizationStateCreateInfo.cullMode = cullMode;
 			pipelineRasterizationStateCreateInfo.frontFace = frontFace;
 			pipelineRasterizationStateCreateInfo.flags = flags;
+
+			// If depthClampEnable is set to VK_TRUE, then fragments that are beyond the near and far planes 
+			// are clamped to them as opposed to discarding them.This is useful in some special cases like 
+			// shadow maps.Using this requires enabling a GPU feature.
 			pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+			pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+
+			// The rasterizer can alter the depth values by adding a constant value or biasing them based on a fragment's slope. 
+			// This is sometimes used for shadow mapping, but we won't be using it. Just set depthBiasEnable to VK_FALSE.
+			pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+			pipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+			pipelineRasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+			pipelineRasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+
+			// The lineWidth member is straightforward, it describes the thickness of lines in 
+			// terms of number of fragments. The maximum line width that is supported depends on the
+			// hardware and any line thicker than 1.0f requires you to enable the wideLines GPU feature.
 			pipelineRasterizationStateCreateInfo.lineWidth = 1.0f;
+
 			return pipelineRasterizationStateCreateInfo;
 		}
 
@@ -440,7 +459,28 @@ namespace vks
 		{
 			VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState {};
 			pipelineColorBlendAttachmentState.colorWriteMask = colorWriteMask;
-			pipelineColorBlendAttachmentState.blendEnable = blendEnable;
+
+			if (blendEnable)
+			{
+				pipelineColorBlendAttachmentState.blendEnable = VK_TRUE;
+				pipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+				pipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+				pipelineColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+				pipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+				pipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+				pipelineColorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+			}
+			else
+			{
+				pipelineColorBlendAttachmentState.blendEnable = VK_FALSE;
+				pipelineColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+				pipelineColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+				pipelineColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+				pipelineColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+				pipelineColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+				pipelineColorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+			}
+
 			return pipelineColorBlendAttachmentState;
 		}
 
@@ -450,8 +490,16 @@ namespace vks
 		{
 			VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo {};
 			pipelineColorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+			pipelineColorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+			pipelineColorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
 			pipelineColorBlendStateCreateInfo.attachmentCount = attachmentCount;
 			pipelineColorBlendStateCreateInfo.pAttachments = pAttachments;
+
+			pipelineColorBlendStateCreateInfo.blendConstants[0] = 0.0f;
+			pipelineColorBlendStateCreateInfo.blendConstants[1] = 0.0f;
+			pipelineColorBlendStateCreateInfo.blendConstants[2] = 0.0f;
+			pipelineColorBlendStateCreateInfo.blendConstants[3] = 0.0f;
+
 			return pipelineColorBlendStateCreateInfo;
 		}
 
@@ -466,6 +514,13 @@ namespace vks
 			pipelineDepthStencilStateCreateInfo.depthWriteEnable = depthWriteEnable;
 			pipelineDepthStencilStateCreateInfo.depthCompareOp = depthCompareOp;
 			pipelineDepthStencilStateCreateInfo.back.compareOp = VK_COMPARE_OP_ALWAYS;
+			pipelineDepthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+			pipelineDepthStencilStateCreateInfo.minDepthBounds = 0.0f;
+			pipelineDepthStencilStateCreateInfo.maxDepthBounds = 1.0f;
+			pipelineDepthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+			pipelineDepthStencilStateCreateInfo.front = {};
+			pipelineDepthStencilStateCreateInfo.back = {};
+
 			return pipelineDepthStencilStateCreateInfo;
 		}
 
@@ -490,6 +545,12 @@ namespace vks
 			pipelineMultisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 			pipelineMultisampleStateCreateInfo.rasterizationSamples = rasterizationSamples;
 			pipelineMultisampleStateCreateInfo.flags = flags;
+			pipelineMultisampleStateCreateInfo.sampleShadingEnable = VK_TRUE;
+			pipelineMultisampleStateCreateInfo.minSampleShading = 0.5f;
+			pipelineMultisampleStateCreateInfo.pSampleMask = nullptr;
+			pipelineMultisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
+			pipelineMultisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+
 			return pipelineMultisampleStateCreateInfo;
 		}
 

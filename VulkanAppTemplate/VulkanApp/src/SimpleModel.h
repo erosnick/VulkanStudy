@@ -23,6 +23,8 @@ struct SimpleMaterialInfo
 	std::string materialName;  // This is purely informational and for debugging
 
 	glm::vec3 diffuseColor;
+	glm::vec3 emissionColor;
+
 	std::string diffuseTexturePath;
 	std::string normalTexturePath;
 	std::string roughnessTexturePath;

@@ -92,7 +92,7 @@ namespace
 
 int main() try
 {
-#if 0
+#if 1
 	process_model_(
 		"../Assets/Models/NewShip/ship.comp5822mesh",
 		"../Assets/Models/NewShip/NewShip.obj"

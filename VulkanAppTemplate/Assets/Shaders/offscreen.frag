@@ -13,7 +13,8 @@ const int LightCount = 16;
 
 layout (binding = 2) uniform MaterialUniformBufferObject
 {
-    vec4 albedo;
+    vec4 diffuseColor;
+    vec4 emissionColor;
     float metallic;
 	float roughness;
 	float ao;
@@ -37,7 +38,8 @@ const int TextureUnits = 64;
 layout (binding = 4) uniform sampler2D renderTextureSampler;
 layout (binding = 5) uniform sampler2D textureSampler[];
 
-layout (location = 0) out vec4 outColor;
+layout (location = 0) out vec4 outColor0;
+layout (location = 1) out vec4 outColor1;
 
 const float PI = 3.14159265359;
 
@@ -92,7 +94,7 @@ void main()
     }
     else
     {
-        albedo = materialUBO.albedo.rgb;
+        albedo = materialUBO.diffuseColor.rgb;
     }
 
     vec3 testColor = vec3(0.0, 0.0, 0.0);
@@ -188,13 +190,19 @@ void main()
     vec3 finalColor = ambient + Lo * fragColor;
 
     // HDR tonemapping
-    finalColor = finalColor / (finalColor + vec3(1.0));
+    // finalColor = finalColor / (finalColor + vec3(1.0));
 
     // gamma correct
     // 交换链使用VK_FORMAT_B8G8R8A8_SRGB格式，shader里不用对最终接过进行gamma correction，这一步会自动执行(和OpenGL不同)
     // finalColor = pow(finalColor, vec3(1.0 / 2.2));
 
-    outColor = vec4(vec3(finalColor), 1.0);
+    outColor0 = vec4(vec3(finalColor), 1.0);
+
+    // Bright parts for bloom into attachment 1
+	float l = dot(outColor0.rgb, vec3(0.2126, 0.7152, 0.0722));
+	float threshold = 0.75;
+	outColor1.rgb = (l > threshold) ? outColor0.rgb : vec3(0.0);
+	outColor1.a = 1.0;
     // outColor = vec4(testColor, 1.0);
     // outColor = vec4(diffuse, 1.0);            // Visualize diffuse
     // outColor = vec4(specular, 1.0);           // Visualize specular term

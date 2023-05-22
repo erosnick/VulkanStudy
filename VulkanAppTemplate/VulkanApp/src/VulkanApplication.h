@@ -138,7 +138,8 @@ struct ObjectUniformBufferObject
 
 struct MaterialUniformBufferObject
 {
-	glm::vec4 albedo = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+	glm::vec4 diffuseColor = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+	glm::vec4 emissionColor = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
 	float metallic = 0.0f;
 	float roughness = 0.5f;
 	float ao = 1.0f;
@@ -550,6 +551,7 @@ private:
 	std::vector<Image> textureImages;
 	std::vector<Buffer> shaderStorageBuffers;
 	VkFormat swapChainImageFormat;
+	VkFormat hdrFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 	VkExtent2D swapChainExtent;
 	VkDebugUtilsMessengerEXT debugMessenger;
 
@@ -576,6 +578,8 @@ private:
 	SimpleModel sphere;
 	SimpleModel marry;
 	SimpleModel disc;
+	SimpleModel ship;
+	SimpleModel bakedShip;
 	SimpleModel mergedModel;
 	
 	std::vector<SimpleModel> models;
@@ -595,16 +599,26 @@ private:
 
 	VmaAllocator vmaAllocator;
 
+	struct Pipelines
+	{
+		VkPipeline offscreen;
+		VkPipeline bloom[2];
+	};
+
+	Pipelines pipelines;
+
 	// Taken from https://github.com/SaschaWillems/Vulkan/blob/master/examples/offscreen/offscreen.cpp
 	struct OffscreenPass 
 	{
 		int32_t width, height;
 		VkFramebuffer frameBuffer;
-		Image color;
+		Image color[2];
 		Image depth;
 		VkRenderPass renderPass;
 		VkSampler sampler;
-		VkPipeline pipeline;
 		VkDescriptorImageInfo descriptor;
-	} offscreenPass;
+	};
+
+	OffscreenPass offscreenPass;
+	OffscreenPass bloomFilterPass;
 };
