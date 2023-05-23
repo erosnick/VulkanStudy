@@ -49,6 +49,8 @@ constexpr uint32_t LightCount = 16;
 
 static uint32_t turnOnLightCount = LightCount;
 
+static bool bloom = false;
+
 static glm::vec4 lightPositions[] = {
 	glm::vec4(-10.0f,  10.0f, 10.0f, 1.0f),
 	glm::vec4( 10.0f,  10.0f, 10.0f, 1.0f),
@@ -224,7 +226,7 @@ std::string VkResultToString(VkResult result);
 // Our state
 static bool showDemoWindow = true;
 static bool showAnotherWindow = false;
-static ImVec4 clearColor = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+static ImVec4 clearColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 //static ImVec4 clearColor = ImVec4(0.4f, 0.6f, 0.9f, 1.0f);
 
 static void checkVkResult(VkResult err)
@@ -292,6 +294,7 @@ private:
 	void createImageViews();
 	void createRenderPass();
 	void createGraphicsDescriptorSetLayout();
+	void createOffscreenDescriptorSetLayout();
 	void createComputeDescriptorSetLayout();
 	void createGraphicsPipeline();
 	void createComputePipeline();
@@ -364,6 +367,7 @@ private:
 	void createComputeCommandBuffers();
 	void createDescriptorPool();
 	void createGraphicsDescriptorSets();
+	void createOffscreenDescriptorSets();
 	void createComputeDescriptorSets();
 	void createSyncObjects();
 
@@ -374,6 +378,8 @@ private:
 	void offscreenRenderPass(uint32_t imageIndex, VkCommandBuffer graphicsCommandBuffer);
 
 	void sceneRenderPass(uint32_t imageIndex, VkCommandBuffer graphicsCommandBuffer);
+
+	void bloomRenderPass(uint32_t imageIndex, VkCommandBuffer graphicsCommandBuffer);
 
 	void screenQuadRenderPass(uint32_t imageIndex, VkCommandBuffer graphicsCommandBuffer);
 
@@ -516,7 +522,6 @@ private:
 	VkPipelineLayout particlePipelineLayout;
 	VkPipelineLayout computePipelineLayout;
 	VkPipeline graphicsPipeline;
-	VkPipeline screenQuadPipeline;
 	VkPipeline particlePipeline;
 	VkPipeline computePipeline;
 	VkCommandPool graphicsCommandPool;
@@ -599,16 +604,43 @@ private:
 
 	VmaAllocator vmaAllocator;
 
-	struct Pipelines
+	struct OffscreenPipelineLayouts
+	{
+		VkPipelineLayout offscreen;
+		VkPipelineLayout bloom;
+		VkPipelineLayout screenQuad;
+	};
+
+	OffscreenPipelineLayouts pipelineLayouts;
+
+	struct OffscreenPipelines
 	{
 		VkPipeline offscreen;
 		VkPipeline bloom[2];
+		VkPipeline screenQuad;
 	};
 
-	Pipelines pipelines;
+	OffscreenPipelines pipelines;
+	
+	struct DescriptorSetLayouts
+	{
+		VkDescriptorSetLayout offscreen;
+		VkDescriptorSetLayout bloom;
+	};
+
+	DescriptorSetLayouts descriptorSetLayouts;
+
+	struct DescriptorSets
+	{
+		std::vector<VkDescriptorSet> offscreen;
+		std::vector<VkDescriptorSet> bloom;
+		std::vector<VkDescriptorSet> screenQuad;
+	};
+
+	DescriptorSets descriptorSets;
 
 	// Taken from https://github.com/SaschaWillems/Vulkan/blob/master/examples/offscreen/offscreen.cpp
-	struct OffscreenPass 
+	struct OffscreenPass
 	{
 		int32_t width, height;
 		VkFramebuffer frameBuffer;
@@ -616,7 +648,7 @@ private:
 		Image depth;
 		VkRenderPass renderPass;
 		VkSampler sampler;
-		VkDescriptorImageInfo descriptor;
+		VkDescriptorImageInfo descriptor[2];
 	};
 
 	OffscreenPass offscreenPass;

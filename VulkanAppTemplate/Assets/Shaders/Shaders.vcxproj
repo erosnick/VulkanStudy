@@ -82,6 +82,20 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CustomBuild Include="bloom.frag">
+      <FileType>Document</FileType>
+      <Command>IF NOT EXIST "$(SolutionDir)\..\Assets\Shaders" (mkdir "$(SolutionDir)\..\Assets\Shaders")
+"$(SolutionDir)/../ThirdParty/shaderc/glslc.exe" -O  -o "$(SolutionDir)/../Assets/Shaders/%(Filename)%(Extension).spv" "%(Identity)"</Command>
+      <Outputs>bloom.frag.spv</Outputs>
+      <Message>GLSLC: [FRAG] '%(Filename)%(Extension)'</Message>
+    </CustomBuild>
+    <CustomBuild Include="bloom.vert">
+      <FileType>Document</FileType>
+      <Command>IF NOT EXIST "$(SolutionDir)\..\Assets\Shaders" (mkdir "$(SolutionDir)\..\Assets\Shaders")
+"$(SolutionDir)/../ThirdParty/shaderc/glslc.exe" -O  -o "$(SolutionDir)/../Assets/Shaders/%(Filename)%(Extension).spv" "%(Identity)"</Command>
+      <Outputs>bloom.vert.spv</Outputs>
+      <Message>GLSLC: [VERT] '%(Filename)%(Extension)'</Message>
+    </CustomBuild>
     <CustomBuild Include="offscreen.frag">
       <FileType>Document</FileType>
       <Command>IF NOT EXIST "$(SolutionDir)\..\Assets\Shaders" (mkdir "$(SolutionDir)\..\Assets\Shaders")
