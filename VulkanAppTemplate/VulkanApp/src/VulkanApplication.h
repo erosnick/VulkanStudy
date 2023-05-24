@@ -50,6 +50,7 @@ constexpr uint32_t LightCount = 16;
 static uint32_t turnOnLightCount = LightCount;
 
 static bool bloom = false;
+static bool tonemapping = true;
 
 static glm::vec4 lightPositions[] = {
 	glm::vec4(-10.0f,  10.0f, 10.0f, 1.0f),
@@ -236,6 +237,18 @@ static void checkVkResult(VkResult err)
 	fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
 	if (err < 0)
 		abort();
+}
+
+namespace Utils
+{
+	inline void memcpy(void* const dst, size_t dstSize, const void* const src, size_t srcSize)
+	{
+#ifdef __linux__
+		memcpy(dst, &src, srcSize);
+#else
+		memcpy_s(dst, dstSize, &src, srcSize);
+#endif
+	}
 }
 
 struct QueueFamilyIndices
@@ -618,6 +631,7 @@ private:
 		VkPipeline offscreen;
 		VkPipeline bloom[2];
 		VkPipeline screenQuad;
+		VkPipeline screenQuadNoToneMapping;
 	};
 
 	OffscreenPipelines pipelines;
