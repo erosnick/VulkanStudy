@@ -241,12 +241,12 @@ static void checkVkResult(VkResult err)
 
 namespace Utils
 {
-	inline void memcpy(void* const dst, size_t dstSize, const void* const src, size_t srcSize)
+	inline void memcpy(void* const dst, size_t dstSize, void const* const src, size_t srcSize)
 	{
 #ifdef __linux__
 		memcpy(dst, &src, srcSize);
 #else
-		memcpy_s(dst, dstSize, &src, srcSize);
+		memcpy_s(dst, dstSize, src, srcSize);
 #endif
 	}
 }
