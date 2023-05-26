@@ -312,7 +312,6 @@ private:
 	void createGraphicsPipeline();
 	void createComputePipeline();
 	void createFramebuffers();
-	void createRenderTextureFramebuffer();
 	void createGraphicsCommandPool();
 	void createTransferCommandPool();
 	void createColorResources(Image& colorImage, VkSampleCountFlagBits numSamples);
@@ -396,7 +395,6 @@ private:
 
 	void screenQuadRenderPass(uint32_t imageIndex, VkCommandBuffer graphicsCommandBuffer);
 
-	void recordRenderTextureGraphicsCommandBuffer(VkCommandBuffer graphicsCommandBuffer, uint32_t imageIndex);
 	void recordComputeCommandBuffer(VkCommandBuffer computeCommandBuffer);
 
 	VkShaderModule createShaderModule(const std::string& path);
@@ -492,7 +490,6 @@ private:
 	void mainLoop();
 	void update();
 	void drawFrame();
-	void drawRenderTextureFrame();
 	void cleanup();
 
 	void processInput(float deltaTime);
@@ -565,7 +562,6 @@ private:
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImageView> swapChainImageViews;
 	std::vector<VkFramebuffer> swapChainFramebuffers;
-	VkFramebuffer renderTextureFramebuffer;
 	std::vector<Image> textureImages;
 	std::vector<Buffer> shaderStorageBuffers;
 	VkFormat swapChainImageFormat;
